@@ -3,7 +3,7 @@
     style="@style/Dialog_Root">
 
     <TextView
-        style="@style/H2_center"
+        style="@style/H2_Center"
         android:text="@string/label_delete_group_confirm" />
 
     <View style="@style/SeparatorListVertical" />

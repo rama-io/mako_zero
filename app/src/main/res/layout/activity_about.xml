@@ -14,25 +14,12 @@
         style="@style/VerticalList"
         android:gravity="center_horizontal">
 
-        <FrameLayout
-            android:layout_width="160dp"
-            android:layout_height="160dp"
-            android:layout_gravity="center"
-            android:background="@drawable/px_circle"
-            android:tag="success">
-
-            <ImageView
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="@drawable/ic_launcher_monochrome"
-                android:tag="base" />
-        </FrameLayout>
-
         <View style="@style/SeparatorListHorizontal" />
 
         <TextView
             android:id="@+id/name_version"
-            style="@style/H3_Center" />
+            android:textColor="@color/accent"
+            style="@style/H2_Center" />
 
         <View style="@style/SeparatorListHorizontal" />
 

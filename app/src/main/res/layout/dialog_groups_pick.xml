@@ -3,7 +3,7 @@
     style="@style/Dialog_Root">
 
     <TextView
-        style="@style/H2_center"
+        style="@style/H2_Center"
         android:text="@string/header_move_to_group" />
 
     <View style="@style/SeparatorListVertical" />
