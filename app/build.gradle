@@ -4,11 +4,10 @@ def current_year = 2026
 def app_name = "mako"
 
 android {
-
+    namespace "com.rama.${app_name}_zero"
     compileSdk 37
 
     defaultConfig {
-        namespace "com.rama.${app_name}_zero"
         targetSdk 37
         versionCode 5
         versionName "${current_year}.${versionCode}"
