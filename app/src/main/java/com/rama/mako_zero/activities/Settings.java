@@ -185,6 +185,7 @@ public class Settings extends BaseActivity {
             radio.setTextColor(getResources().getColor(R.color.text));
             radio.setChecked(!randomMode && palette.id.equals(currentTheme));
             themeGroup.addView(radio);
+            FontManager.apply(radio, FontManager.getJersey25(this));
             radio.setOnClickListener(v -> {
                 prefs.setTheme(palette.id);
                 ThemeManager.applyTheme(Settings.this, findViewById(R.id.root));

@@ -6,6 +6,9 @@ Just a launcher that gets out of the way.
 
 Built entirely in **Java**, at just **145 KB**, and running fully **on-device**.
 
+Designed to support Android API 5 (Android 2.0) through the latest Android versions, with a focus on broad compatibility and long-term stability.
+
+> This app prioritizes stability. It has already reached maturity and is no longer accepting pull requests.
 ---
 
 ## Screenshots
@@ -41,4 +44,4 @@ Built entirely in **Java**, at just **145 KB**, and running fully **on-device**.
 
 ## Acknowledgements
 
-Port of [Mako [Kotlin]](https://f-droid.org/en/packages/com.rama.mako/) Inspired by [YAML Launcher](https://f-droid.org/en/packages/eu.ottop.yamlauncher/) and [Pie Launcher](https://f-droid.org/en/packages/de.markusfisch.android.pielauncher/).
+Port of [Mako](https://f-droid.org/en/packages/com.rama.mako/) Inspired by [YAML Launcher](https://f-droid.org/en/packages/eu.ottop.yamlauncher/) and [Pie Launcher](https://f-droid.org/en/packages/de.markusfisch.android.pielauncher/).

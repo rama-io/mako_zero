@@ -55,7 +55,7 @@ public class AppsProvider {
     }
 
     private final Context context;
-    private final Map<String, Long> appSizeCache = new HashMap<String, Long>();
+    private final Map<String, Long> appSizeCache = new HashMap<>();
     private final ProfileApps profileApps;
 
     public AppsProvider(Context context) {
