@@ -1,5 +1,3 @@
-![Preview](./docs/img/mako_header_1200x630.svg)
-
 # Mako Zero
 
 Just a launcher that gets out of the way.
