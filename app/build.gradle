@@ -1,20 +1,35 @@
 apply plugin: 'com.android.application'
 
-def currentYear = 2026
+def current_year = 2026
+def app_name = "mako"
 
 android {
-    namespace 'com.rama.mako_zero'
+
     compileSdk 37
 
     defaultConfig {
-        applicationId 'com.rama.mako_zero'
-        minSdk 5
+        namespace "com.rama.${app_name}_zero"
         targetSdk 37
-
         versionCode 5
-        versionName "${currentYear}.${versionCode}"
+        versionName "${current_year}.${versionCode}"
 
         resConfigs "en"
+    }
+
+    flavorDimensions "androidVersion"
+
+    productFlavors {
+        forever {
+            applicationId "com.rama.${app_name}_forever"
+            dimension "androidVersion"
+            minSdk 5
+        }
+
+        zero {
+            applicationId "com.rama.${app_name}_zero"
+            dimension "androidVersion"
+            minSdk 21
+        }
     }
 
     buildTypes {
@@ -22,16 +37,6 @@ android {
             minifyEnabled true
             shrinkResources true
             vcsInfo.include = false
-
-            signingConfig signingConfigs.getByName('debug')
-        }
-
-        beta {
-            applicationIdSuffix '.beta'
-            versionNameSuffix '-beta'
-            minifyEnabled true
-            shrinkResources true
-
             signingConfig signingConfigs.getByName('debug')
         }
 
@@ -55,7 +60,7 @@ android {
     packaging {
         resources {
             excludes += 'META-INF/*.version'
-            excludes += 'META-INF/com/android/build/gradle/app-metadata.properties'
+            excludes += 'META-INF/com/android/gradle/app-metadata.properties'
             excludes += 'kotlin/**'
         }
 
@@ -68,8 +73,13 @@ android {
 androidComponents {
     onVariants(selector().all()) { variant ->
         variant.outputs.each { output ->
-            output.outputFileName.set(output.versionName.map { name -> "mako_zero_${name}.apk"
-            })
+            def flavor = variant.flavorName
+
+            output.outputFileName.set(
+                    output.versionName.map { name ->
+                        "${app_name}_${flavor}_${name}.apk"
+                    }
+            )
         }
     }
 }
