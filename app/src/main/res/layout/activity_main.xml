@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    style="@style/VerticalList"
+    android:layout_height="match_parent"
+    android:background="@color/base"
+    android:paddingLeft="16dp"
+    android:paddingTop="16dp"
+    android:paddingRight="16dp"
+    android:paddingBottom="16dp">
+
+    <LinearLayout
+        android:id="@+id/home_header"
+        style="@style/VerticalList">
+
+        <LinearLayout
+            android:gravity="start"
+            style="@style/HorizontalList">
+            <TextView
+                android:id="@+id/time"
+                android:layout_weight="1"
+                style="@style/H1" />
+
+            <FrameLayout
+                android:id="@+id/lock_area"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="12sp"
+                android:visibility="gone">
+
+                <ImageView
+                    android:id="@+id/lock_icon"
+                    style="@style/Icon24"
+                    android:src="@drawable/px_lock" />
+            </FrameLayout>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/date"
+            style="@style/BlockFlow"
+            android:textColor="@color/text"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/battery"
+            style="@style/BlockFlow"
+            android:textColor="@color/text"
+            android:textSize="14sp" />
+
+    </LinearLayout>
+
+    <ListView
+        android:id="@+id/app_list"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="@android:color/transparent"
+        android:cacheColorHint="@android:color/transparent"
+        android:divider="@null"
+        android:dividerHeight="0dp"
+        android:fadingEdge="none"
+        android:overScrollMode="never"
+        android:scrollbars="none" />
+
+    <LinearLayout
+        android:id="@+id/menu_bar"
+        style="@style/HorizontalList_BG2"
+        android:padding="4sp"
+        android:visibility="gone">
+
+        <FrameLayout
+            android:id="@+id/multi_select_cancel_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:padding="12sp">
+
+            <ImageView
+                style="@style/Icon24"
+                android:src="@drawable/px_arrow_left" />
+        </FrameLayout>
+
+        <TextView
+            android:id="@+id/selected_count"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="@color/text"
+            android:textSize="18sp" />
+
+        <FrameLayout
+            android:id="@+id/rename_btn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:padding="12sp">
+
+            <ImageView
+                style="@style/Icon24"
+                android:src="@drawable/px_edit" />
+        </FrameLayout>
+
+        <FrameLayout
+            android:id="@+id/move_to_group_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:padding="12sp">
+
+            <ImageView
+                style="@style/Icon24"
+                android:src="@drawable/px_folder_enter" />
+        </FrameLayout>
+
+        <FrameLayout
+            android:id="@+id/app_settings"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:padding="12sp">
+
+            <ImageView
+                android:id="@+id/app_settings_icon"
+                style="@style/Icon24"
+                android:src="@drawable/px_cog" />
+        </FrameLayout>
+
+    </LinearLayout>
+
+</LinearLayout>

@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/root"
+    style="@style/VerticalList"
+    android:layout_height="match_parent"
+    android:background="@color/base"
+    android:paddingLeft="16dp"
+    android:paddingTop="16dp"
+    android:paddingRight="16dp"
+    android:paddingBottom="16dp">
+
+    <LinearLayout
+        style="@style/VerticalList"
+        android:gravity="center_horizontal">
+
+        <FrameLayout
+            android:layout_width="160dp"
+            android:layout_height="160dp"
+            android:layout_gravity="center"
+            android:background="@drawable/px_circle"
+            android:tag="success">
+
+            <ImageView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/ic_launcher_monochrome"
+                android:tag="base" />
+        </FrameLayout>
+
+        <View style="@style/SeparatorListHorizontal" />
+
+        <TextView
+            android:id="@+id/name_version"
+            style="@style/H3_Center" />
+
+        <View style="@style/SeparatorListHorizontal" />
+
+        <TextView
+            android:id="@+id/app_description"
+            style="@style/Text_Center"
+            android:text="@string/app_desc" />
+
+        <View style="@style/SeparatorListHorizontal" />
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="@android:color/transparent"
+        android:cacheColorHint="@android:color/transparent"
+        android:fadingEdge="none"
+        android:fillViewport="true"
+        android:overScrollMode="never"
+        android:scrollbars="none">
+
+        <LinearLayout style="@style/VerticalList">
+
+            <LinearLayout
+                style="@style/VerticalList"
+                android:gravity="center_horizontal">
+
+                <LinearLayout
+                    android:id="@+id/claims"
+                    style="@style/VerticalList">
+
+                    <com.rama.mako_zero.widgets.WdLabel
+                        style="@style/BlockFlow"
+                        app:icon="@drawable/px_check"
+                        app:text="@string/app_claims_ads_desc" />
+
+                    <View style="@style/SeparatorListHorizontal" />
+
+                    <com.rama.mako_zero.widgets.WdLabel
+                        style="@style/BlockFlow"
+                        app:icon="@drawable/px_check"
+                        app:text="@string/app_claims_background_tasks_desc" />
+
+                    <View style="@style/SeparatorListHorizontal" />
+
+                    <com.rama.mako_zero.widgets.WdLabel
+                        style="@style/BlockFlow"
+                        app:icon="@drawable/px_check"
+                        app:text="@string/app_claims_trackers_desc" />
+
+                    <View style="@style/SeparatorListHorizontal" />
+
+                    <com.rama.mako_zero.widgets.WdLabel
+                        style="@style/BlockFlow"
+                        app:icon="@drawable/px_check"
+                        app:text="@string/app_claims_offline_desc" />
+
+                    <View style="@style/SeparatorListHorizontal" />
+
+                    <com.rama.mako_zero.widgets.WdLabel
+                        style="@style/BlockFlow"
+                        app:icon="@drawable/px_check"
+                        app:text="@string/license_gpl3" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
+
+    <View style="@style/Separator" />
+
+    <Button
+        android:id="@+id/go_back"
+        style="@style/BTN"
+        android:text="@string/btn_go_back" />
+</LinearLayout>

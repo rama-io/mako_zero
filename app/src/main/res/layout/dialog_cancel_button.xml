@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <View style="@style/SeparatorListVertical" />
+
+    <Button
+        android:id="@+id/cancel_button"
+        style="@style/BTN"
+        android:text="@string/btn_cancel" />
+</merge>

@@ -1,0 +1,75 @@
+apply plugin: 'com.android.application'
+
+def currentYear = 2026
+
+android {
+    namespace 'com.rama.mako_zero'
+    compileSdk sdk_version
+
+    defaultConfig {
+        applicationId 'com.rama.mako_zero'
+        minSdk 5
+        targetSdk sdk_version
+
+        versionCode 1
+        versionName "${currentYear}.${versionCode}"
+
+        resConfigs "en"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            vcsInfo.include = false
+
+            signingConfig signingConfigs.getByName('debug')
+        }
+
+        beta {
+            applicationIdSuffix '.beta'
+            versionNameSuffix '-beta'
+            minifyEnabled true
+            shrinkResources true
+
+            signingConfig signingConfigs.getByName('debug')
+        }
+
+        debug {
+            applicationIdSuffix '.debug'
+            versionNameSuffix '-dev'
+            signingConfig signingConfigs.getByName('debug')
+        }
+    }
+
+    dependenciesInfo {
+        includeInApk false
+        includeInBundle false
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    packaging {
+        resources {
+            excludes += 'META-INF/*.version'
+            excludes += 'META-INF/com/android/build/gradle/app-metadata.properties'
+            excludes += 'kotlin/**'
+        }
+
+        jniLibs {
+            useLegacyPackaging true
+        }
+    }
+}
+
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        variant.outputs.each { output ->
+            output.outputFileName.set(output.versionName.map { name -> "mako_zero_${name}.apk"
+            })
+        }
+    }
+}

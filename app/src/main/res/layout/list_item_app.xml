@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    style="@style/HorizontalList"
+    android:background="@android:color/transparent"
+    android:gravity="center_vertical">
+
+    <ImageView
+        android:id="@+id/selection_check"
+        style="@style/Icon32"
+        android:paddingRight="8sp"
+        android:src="@drawable/px_check"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/app_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:minWidth="40sp"
+        android:paddingTop="@dimen/space_between_elements"
+        android:paddingBottom="@dimen/space_between_elements"
+        android:textColor="@color/text"
+        android:textSize="32sp" />
+
+    <LinearLayout
+        android:id="@+id/empty_space"
+        style="@style/VerticalList"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:clickable="false"
+        android:focusable="false"
+        android:gravity="center_vertical|end"
+        android:paddingRight="@dimen/small">
+
+        <LinearLayout
+            android:id="@+id/api"
+            style="@style/HorizontalList"
+            android:layout_width="wrap_content"
+            android:gravity="end"
+            android:minWidth="35sp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/min_api"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/disabled"
+                android:textSize="@dimen/small" />
+
+            <TextView
+                android:id="@+id/api_separator"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/label_api_separator"
+                android:textColor="@color/disabled"
+                android:textSize="@dimen/small" />
+
+            <TextView
+                android:id="@+id/target_api"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/disabled"
+                android:textSize="@dimen/small" />
+        </LinearLayout>
+
+        <View style="@style/SeparatorListHorizontalSmall" />
+
+        <TextView
+            android:id="@+id/app_size"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/disabled"
+            android:textSize="@dimen/small" />
+    </LinearLayout>
+
+</LinearLayout>

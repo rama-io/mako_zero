@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    style="@style/HorizontalList_BG2">
+
+    <FrameLayout
+        android:id="@+id/box"
+        android:layout_width="18sp"
+        android:layout_height="18sp"
+        android:background="@drawable/px_box_outline"
+        android:tag="accent"
+        android:padding="1sp">
+
+        <ImageView
+            android:id="@+id/check"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:importantForAccessibility="no"
+            android:src="@drawable/px_check"
+            android:visibility="gone"
+            android:tag="accent" />
+
+    </FrameLayout>
+
+    <View style="@style/SeparatorListHorizontal" />
+
+    <TextView
+        android:id="@+id/text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_vertical" />
+
+</LinearLayout>

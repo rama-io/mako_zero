@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    style="@style/Dialog_Root">
+
+    <TextView
+        style="@style/H2_center"
+        android:text="@string/label_delete_group_confirm" />
+
+    <View style="@style/SeparatorListVertical" />
+
+    <TextView
+        android:id="@+id/group_name"
+        style="@style/Text_Center"
+        android:background="@color/surface_0"
+        android:padding="@dimen/space_between_elements" />
+
+    <View style="@style/SeparatorListVertical" />
+
+    <TextView
+        style="@style/Disclaimer"
+        android:gravity="center"
+        android:text="@string/label_delete_group_target" />
+
+    <View style="@style/SeparatorListVertical" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <com.rama.mako_zero.widgets.WdRadioGroup
+            android:id="@+id/groups"
+            style="@style/VerticalList_BG2" />
+    </ScrollView>
+
+    <View style="@style/SeparatorListVertical" />
+
+    <Button
+        android:id="@+id/yes_button"
+        style="@style/BTN_danger"
+        android:text="@string/btn_delete_group" />
+
+    <include layout="@layout/dialog_cancel_button" />
+</LinearLayout>

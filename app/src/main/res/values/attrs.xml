@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <attr name="text" format="string" />
+    <attr name="icon" format="reference" />
+
+    <declare-styleable name="WdCollapsibleSection">
+        <attr name="header" format="string" />
+        <attr name="key" format="string" />
+        <attr name="defaultExpanded" format="boolean" />
+    </declare-styleable>
+</resources>

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <LinearLayout
+        android:id="@+id/root"
+        style="@style/HorizontalList"
+        android:background="@color/surface_0"
+        android:padding="8dp">
+
+        <FrameLayout
+            android:id="@+id/icon_container"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@color/surface_1"
+            android:padding="12dp">
+
+            <FrameLayout
+                android:id="@+id/octagon"
+                style="@style/Icon24"
+                android:layout_gravity="center"
+                android:background="@drawable/px_circle"
+                android:padding="1sp"
+                android:tag="success">
+
+                <ImageView
+                    android:id="@+id/icon_image"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/px_check"
+                    android:tag="surface_0" />
+            </FrameLayout>
+        </FrameLayout>
+
+        <View style="@style/SeparatorListHorizontal" />
+
+        <TextView
+            android:id="@+id/icon_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/text"
+            android:textSize="16sp" />
+    </LinearLayout>
+
+</merge>

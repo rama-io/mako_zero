@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/header_text"
+    style="@style/BlockFlow"
+    android:background="@android:color/transparent"
+    android:clickable="false"
+    android:focusable="false"
+    android:paddingTop="@dimen/space_between_elements"
+    android:paddingBottom="@dimen/space_between_elements"
+    android:textColor="@color/accent"
+    android:textSize="16sp" />

@@ -1,0 +1,1 @@
+Built entirely in Java, at just 145 KB, and running fully on-device.
