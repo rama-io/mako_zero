@@ -141,7 +141,7 @@
                 android:id="@+id/themes_section"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:defaultExpanded="false"
+                app:defaultExpanded="true"
                 app:header="@string/header_themes"
                 app:key="settings:section:appearance">
 

@@ -4,9 +4,11 @@
     <string name="app_desc">Just a launcher that gets out of the way</string>
     <string name="app_version">%1$s v%2$d</string>
     <string name="app_claims_ads_desc">No Ads</string>
-    <string name="app_claims_background_tasks_desc">No Background Tasks</string>
-    <string name="app_claims_offline_desc">Works Offline</string>
-    <string name="app_claims_trackers_desc">No Trackers</string>
+    <string name="app_claims_background_tasks_desc">No Background Activity</string>
+    <string name="app_claims_offline_desc">Works Completely Offline</string>
+    <string name="app_claims_trackers_desc">No Tracking</string>
+    <string name="app_claims_min_api">Supports Android 2.0 and Later</string>
+    <string name="app_claims_app_size">Only 145 KB</string>
 
     <string name="license_gpl3" translatable="false">GPL 3.0</string>
 

@@ -68,6 +68,20 @@
                     <com.rama.mako_zero.widgets.WdLabel
                         style="@style/BlockFlow"
                         app:icon="@drawable/px_check"
+                        app:text="@string/app_claims_app_size" />
+
+                    <View style="@style/SeparatorListHorizontal" />
+
+                    <com.rama.mako_zero.widgets.WdLabel
+                        style="@style/BlockFlow"
+                        app:icon="@drawable/px_check"
+                        app:text="@string/app_claims_min_api" />
+
+                    <View style="@style/SeparatorListHorizontal" />
+
+                    <com.rama.mako_zero.widgets.WdLabel
+                        style="@style/BlockFlow"
+                        app:icon="@drawable/px_check"
                         app:text="@string/app_claims_ads_desc" />
 
                     <View style="@style/SeparatorListHorizontal" />
