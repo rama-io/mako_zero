@@ -171,6 +171,7 @@ public class Settings extends BaseActivity {
         randomRadio.setTextColor(getResources().getColor(R.color.text));
         randomRadio.setChecked(randomMode);
         themeGroup.addView(randomRadio);
+        FontManager.apply(randomRadio, FontManager.getJersey25(this));
         randomRadio.setOnClickListener(v -> {
             prefs.setTheme(PrefTheme.CATPPUCCIN_MOCHA_RANDOM);
             ThemeManager.roll(Settings.this);
