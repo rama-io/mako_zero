@@ -5,10 +5,10 @@ def app_name = "mako"
 
 android {
     namespace "com.rama.${app_name}_zero"
-    applicationId "com.rama.${app_name}_zero"
     compileSdk 37
 
     defaultConfig {
+        applicationId "com.rama.${app_name}_zero"
         targetSdk 37
         versionCode 5
         versionName "${current_year}.${versionCode}"
