@@ -8,7 +8,7 @@
     <string name="app_claims_offline_desc">Works Completely Offline</string>
     <string name="app_claims_trackers_desc">No Tracking</string>
     <string name="app_claims_min_api">Supports Android 2.0 and Later</string>
-    <string name="app_claims_app_size">Only 145 KB</string>
+    <string name="app_claims_app_size">Only 135 KB</string>
 
     <string name="license_gpl3" translatable="false">GPL 3.0</string>
 

@@ -4,7 +4,7 @@
 
 Just a launcher that gets out of the way.
 
-Built entirely in **Java**, at just **145 KB**, and running fully **on-device**.
+Built entirely in **Java**, at just **135 KB**, and running fully **on-device**.
 
 Designed to support Android API 5 (Android 2.0) through the latest Android versions, with a focus on broad compatibility and long-term stability.
 
