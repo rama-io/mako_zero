@@ -1,19 +1,14 @@
 # Mako Zero
 
-Just a launcher that gets out of the way.
-
-Built entirely in **Java**, at just **135 KB**, and running fully **on-device**.
-
-Designed to support Android API 5 (Android 2.0) through the latest Android versions, with a focus on broad compatibility and long-term stability.
-
-> This app prioritizes stability. It has already reached maturity and is no longer accepting pull requests.
----
-
-## Screenshots
+**Just a launcher that gets out of the way.**
 
 | Home | Settings | About |
 | - | - | - |
 | ![Home](./fastlane/metadata/android/en-US/images/phoneScreenshots/1.png) | ![Settings](./fastlane/metadata/android/en-US/images/phoneScreenshots/2.png) | ![About](./fastlane/metadata/android/en-US/images/phoneScreenshots/3.png) |
+
+Designed to support Android API 5 (Android 2.0) through the latest Android versions, with a focus on broad compatibility and long-term stability.
+
+> This app prioritizes stability. It has already reached maturity and is no longer accepting pull requests.
 
 ---
 
