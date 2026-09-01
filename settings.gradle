@@ -1,0 +1,9 @@
+pluginManagement {
+    repositories {
+        google()
+        gradlePluginPortal()
+    }
+}
+
+rootProject.name = "MakoForever"
+include ':app'

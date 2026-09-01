@@ -1,0 +1,23 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.rama.mako_forever'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.rama.mako_forever'
+        minSdk 9
+        targetSdk 35
+
+        versionCode 1
+        versionName '1.0'
+    }
+
+    externalNativeBuild {
+        cmake {
+            path 'CMakeLists.txt'
+        }
+    }
+}
