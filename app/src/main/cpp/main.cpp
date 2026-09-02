@@ -117,7 +117,8 @@ static const Glyph FONT[] = {
         {' ', {0,0,0,0,0,0,0}},
         {'.', {0,0,0,0,0,0x0C,0x0C}},
         {'-', {0,0,0,0x1F,0,0,0}},
-        {'_', {0,0,0,0,0,0,0x1F}}
+        {'_', {0,0,0,0,0,0,0x1F}},
+        {':', {0x00, 0x0C, 0x0C, 0x00, 0x0C, 0x0C, 0x00}}
 };
 
 static const Glyph* findGlyph(char c)
@@ -184,7 +185,7 @@ static void drawText(
                 findGlyph(c);
 
         if (!glyph) {
-            cursorX += 6 * scale;
+            cursorX += 8 * scale;
             continue;
         }
 
@@ -209,7 +210,7 @@ static void drawText(
             }
         }
 
-        cursorX += 6 * scale;
+        cursorX += 7 * scale;
     }
 }
 
@@ -710,11 +711,9 @@ static void drawAppList()
     // Colors
     // --------------------------------------------------------
 
-    constexpr uint32_t BACKGROUND = 0xFF101014;
-    constexpr uint32_t ROW_COLOR  = 0xFF1B1B22;
-    constexpr uint32_t LINE_COLOR = 0xFF303039;
-    constexpr uint32_t TEXT_COLOR = 0xFFFFFFFF;
-    constexpr uint32_t NUMBER_COLOR = 0xFF777780;
+    constexpr uint32_t BACKGROUND_COLOR = 0xFF2E1E1E;
+    constexpr uint32_t TEXT_COLOR = 0xFFF4D6CD;
+    constexpr uint32_t ACCENT_COLOR = 0xFFF7A6CB;
 
     // --------------------------------------------------------
     // Background
@@ -726,31 +725,23 @@ static void drawAppList()
             0,
             width,
             height,
-            BACKGROUND
+            BACKGROUND_COLOR
     );
 
     // --------------------------------------------------------
     // Header
     // --------------------------------------------------------
 
-    constexpr int HEADER_HEIGHT = 110;
-
-    fillRect(
-            buffer,
-            0,
-            0,
-            width,
-            HEADER_HEIGHT,
-            0xFF15151B
-    );
+    constexpr int SCREEN_PADDING_Y = 110;
+    constexpr int SCREEN_PADDING = 32;
 
     drawText(
             buffer,
-            "Mako Zero",
-            32,
-            28,
-            6,
-            TEXT_COLOR
+            "22:00",
+            SCREEN_PADDING,
+            SCREEN_PADDING_Y,
+            16,
+            ACCENT_COLOR
     );
 
     // --------------------------------------------------------
@@ -758,56 +749,24 @@ static void drawAppList()
     // --------------------------------------------------------
 
     constexpr int ROW_HEIGHT = 100;
-    constexpr int LEFT_MARGIN = 32;
-    constexpr int TEXT_OFFSET = 110;
 
     for (size_t i = 0; i < apps.size(); ++i) {
 
         const int y =
-                HEADER_HEIGHT +
+                SCREEN_PADDING_Y * 2 + SCREEN_PADDING +
                 static_cast<int>(i) * ROW_HEIGHT;
 
         if (y >= height)
             break;
 
-        // Row background
-        fillRect(
-                buffer,
-                16,
-                y + 8,
-                width - 32,
-                ROW_HEIGHT - 16,
-                ROW_COLOR
-        );
-
-        // Number
-        drawText(
-                buffer,
-                std::to_string(i + 1),
-                LEFT_MARGIN,
-                y + 35,
-                5,
-                NUMBER_COLOR
-        );
-
         // Application name
         drawText(
                 buffer,
                 apps[i].label,
-                TEXT_OFFSET,
-                y + 32,
-                5,
+                SCREEN_PADDING,
+                y + SCREEN_PADDING,
+                6,
                 TEXT_COLOR
-        );
-
-        // Divider
-        fillRect(
-                buffer,
-                16,
-                y + ROW_HEIGHT - 1,
-                width - 32,
-                1,
-                LINE_COLOR
         );
     }
 
@@ -825,14 +784,6 @@ static void handleTouch(
 {
     if (apps.empty())
         return;
-
-    /*
-     * Every app occupies one row.
-     *
-     * 80 px is the initial row height.
-     * We'll make this match the renderer once text rendering
-     * is added.
-     */
 
     constexpr float ROW_HEIGHT = 140.0f;
 
