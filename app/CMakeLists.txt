@@ -25,8 +25,13 @@ PRIVATE
 ${ANDROID_NDK}/sources/android/native_app_glue
 )
 
+find_library(
+    log-lib
+    log
+)
+
 target_link_libraries(
-mako_forever
-${android-lib}
-${log-lib}
+    mako_forever
+    ${android-lib}
+    ${log-lib}
 )
