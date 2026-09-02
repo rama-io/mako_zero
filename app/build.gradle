@@ -2,16 +2,32 @@ apply plugin: 'com.android.application'
 
 android {
     namespace 'com.rama.mako_zero'
-    compileSdk 36
+    compileSdk 37
     ndkVersion '27.0.12077973'
 
     defaultConfig {
         applicationId 'com.rama.mako_zero'
         minSdk 21
-        targetSdk 36
+        targetSdk 37
 
         versionCode 1
-        versionName '1.0'
+        versionName "2026.$versionCode"
+    }
+
+    buildTypes {
+        debug {
+            minifyEnabled false
+        }
+
+        release {
+            minifyEnabled true
+            shrinkResources true
+
+            proguardFiles(
+                    getDefaultProguardFile('proguard-android-optimize.txt'),
+                    'proguard-rules.pro'
+            )
+        }
     }
 
     externalNativeBuild {
