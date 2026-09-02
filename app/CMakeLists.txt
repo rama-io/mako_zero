@@ -13,7 +13,13 @@ find_library(
     android
 )
 
+find_library(
+    log-lib
+    log
+)
+
 target_link_libraries(
     mako_forever
     ${android-lib}
+    ${log-lib}
 )
