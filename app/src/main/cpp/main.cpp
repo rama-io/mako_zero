@@ -7,6 +7,7 @@
 #include <jni.h>
 
 #include <algorithm>
+#include <cmath>
 #include <string>
 #include <vector>
 
@@ -30,9 +31,61 @@ static ANativeWindow* window = nullptr;
 static bool touching = false;
 static float touchX = 0.0f;
 static float touchY = 0.0f;
+static float touchStartY = 0.0f;
+static float touchLastY = 0.0f;
+static bool isDragging = false;
 
 static JavaVM* javaVM = nullptr;
 static jobject nativeActivity = nullptr;
+
+// ============================================================
+// Shared layout constants
+// ============================================================
+//
+// These used to be re-declared separately (and inconsistently!)
+// inside drawAppList() and handleTouch(). They're pulled up here
+// so rendering and hit-testing always agree on where things are.
+//
+
+constexpr int SCREEN_PADDING_Y = 110;
+constexpr int SCREEN_PADDING = 32;
+constexpr int HEADER_HEIGHT = 110;
+constexpr int SPACE_BLOCK = 42;
+constexpr int DATE_HEIGHT = 32;
+constexpr int ROW_HEIGHT = 110;
+constexpr float DRAG_THRESHOLD = 16.0f;
+
+// System UI insets: status bar, display cutout (notch) and
+// navigation bar, in pixels. Queried from Java via
+// updateWindowInsets() and refreshed on window init/resize/focus.
+static int insetTop = 0;
+static int insetBottom = 0;
+static int insetLeft = 0;
+static int insetRight = 0;
+
+// Vertical scroll state for the app list.
+static float scrollOffsetY = 0.0f;
+static float maxScrollOffsetY = 0.0f;
+
+// Y-axis clip window applied inside fillRect() while the list is
+// being drawn, so rows can never paint over the header or under
+// the navigation bar.
+static int clipTop = 0;
+static int clipBottom = 1 << 30;
+
+// Top of the scrollable list, below the header and clear of the
+// status bar / notch.
+static int listTop()
+{
+    return SCREEN_PADDING_Y + HEADER_HEIGHT + SPACE_BLOCK +
+           DATE_HEIGHT + 10 + insetTop;
+}
+
+// Bottom of the scrollable list, clear of the navigation bar.
+static int listBottom(int screenHeight)
+{
+    return screenHeight - insetBottom;
+}
 
 // ============================================================
 // Simple bitmap font
@@ -123,9 +176,9 @@ static void fillRect(
     const int screenHeight = buffer.height;
 
     int x0 = std::max(0, x);
-    int y0 = std::max(0, y);
+    int y0 = std::max({0, y, clipTop});
     int x1 = std::min(screenWidth, x + width);
-    int y1 = std::min(screenHeight, y + height);
+    int y1 = std::min({screenHeight, y + height, clipBottom});
 
     if (x0 >= x1 || y0 >= y1)
         return;
@@ -222,6 +275,237 @@ static JNIEnv* getJNIEnv()
     }
 
     return nullptr;
+}
+
+
+// ============================================================
+// System window insets (status bar, display cutout / notch,
+// navigation bar)
+// ============================================================
+//
+// NativeActivity draws edge-to-edge with no decor, so the system
+// bars (and any notch/cutout) just overlay our buffer unless we
+// manually leave room for them. There's no NDK API for this, so
+// it has to be fetched from the Java side via
+// View.getRootWindowInsets().
+//
+
+static void updateWindowInsets()
+{
+    insetTop = 0;
+    insetBottom = 0;
+    insetLeft = 0;
+    insetRight = 0;
+
+    JNIEnv* env = getJNIEnv();
+
+    if (!env || !nativeActivity)
+        return;
+
+    jclass activityClass = env->GetObjectClass(nativeActivity);
+
+    // Activity.getWindow()
+    jmethodID getWindow = env->GetMethodID(
+            activityClass, "getWindow", "()Landroid/view/Window;");
+
+    jobject windowObj = getWindow ?
+            env->CallObjectMethod(nativeActivity, getWindow) : nullptr;
+
+    if (env->ExceptionCheck())
+        env->ExceptionClear();
+
+    if (!windowObj) {
+        env->DeleteLocalRef(activityClass);
+        return;
+    }
+
+    jclass windowClass = env->GetObjectClass(windowObj);
+
+    // Window.getDecorView()
+    jmethodID getDecorView = env->GetMethodID(
+            windowClass, "getDecorView", "()Landroid/view/View;");
+
+    jobject decorView = getDecorView ?
+            env->CallObjectMethod(windowObj, getDecorView) : nullptr;
+
+    if (env->ExceptionCheck())
+        env->ExceptionClear();
+
+    if (!decorView) {
+        env->DeleteLocalRef(windowClass);
+        env->DeleteLocalRef(windowObj);
+        env->DeleteLocalRef(activityClass);
+        return;
+    }
+
+    jclass viewClass = env->GetObjectClass(decorView);
+
+    // View.getRootWindowInsets() -- API 23+. Can return null if
+    // the view isn't attached yet.
+    jmethodID getRootWindowInsets = env->GetMethodID(
+            viewClass, "getRootWindowInsets",
+            "()Landroid/view/WindowInsets;");
+
+    jobject insetsObj = getRootWindowInsets ?
+            env->CallObjectMethod(decorView, getRootWindowInsets) :
+            nullptr;
+
+    if (env->ExceptionCheck())
+        env->ExceptionClear();
+
+    if (insetsObj) {
+
+        jclass insetsClass = env->GetObjectClass(insetsObj);
+        bool resolved = false;
+
+        // ----------------------------------------------------
+        // Preferred path (API 30+): WindowInsets.getInsets(int),
+        // combining systemBars() and displayCutout() so a notch
+        // is accounted for even when it doesn't overlap the
+        // status bar (e.g. a side cutout in landscape).
+        // ----------------------------------------------------
+
+        jmethodID getInsets = env->GetMethodID(
+                insetsClass, "getInsets", "(I)Landroid/graphics/Insets;");
+
+        if (env->ExceptionCheck())
+            env->ExceptionClear();
+
+        if (getInsets) {
+
+            jclass typeClass = env->FindClass("android/view/WindowInsets$Type");
+
+            if (env->ExceptionCheck())
+                env->ExceptionClear();
+
+            if (typeClass) {
+
+                jmethodID systemBarsFn = env->GetStaticMethodID(
+                        typeClass, "systemBars", "()I");
+                jmethodID cutoutFn = env->GetStaticMethodID(
+                        typeClass, "displayCutout", "()I");
+
+                if (systemBarsFn && cutoutFn) {
+
+                    jint mask =
+                            env->CallStaticIntMethod(typeClass, systemBarsFn) |
+                            env->CallStaticIntMethod(typeClass, cutoutFn);
+
+                    jobject insetsValue =
+                            env->CallObjectMethod(insetsObj, getInsets, mask);
+
+                    if (env->ExceptionCheck())
+                        env->ExceptionClear();
+
+                    if (insetsValue) {
+
+                        jclass valueClass = env->GetObjectClass(insetsValue);
+
+                        jfieldID leftF = env->GetFieldID(valueClass, "left", "I");
+                        jfieldID topF = env->GetFieldID(valueClass, "top", "I");
+                        jfieldID rightF = env->GetFieldID(valueClass, "right", "I");
+                        jfieldID bottomF = env->GetFieldID(valueClass, "bottom", "I");
+
+                        insetLeft = env->GetIntField(insetsValue, leftF);
+                        insetTop = env->GetIntField(insetsValue, topF);
+                        insetRight = env->GetIntField(insetsValue, rightF);
+                        insetBottom = env->GetIntField(insetsValue, bottomF);
+
+                        resolved = true;
+
+                        env->DeleteLocalRef(valueClass);
+                        env->DeleteLocalRef(insetsValue);
+                    }
+                }
+
+                env->DeleteLocalRef(typeClass);
+            }
+        }
+
+        // ----------------------------------------------------
+        // Fallback (API < 30, or the path above didn't resolve):
+        // legacy getSystemWindowInset*() plus, on API 28+, the
+        // DisplayCutout's own safe insets taken as a max, in case
+        // the notch isn't folded into the legacy value.
+        // ----------------------------------------------------
+
+        if (!resolved) {
+
+            jmethodID topFn = env->GetMethodID(
+                    insetsClass, "getSystemWindowInsetTop", "()I");
+            jmethodID bottomFn = env->GetMethodID(
+                    insetsClass, "getSystemWindowInsetBottom", "()I");
+            jmethodID leftFn = env->GetMethodID(
+                    insetsClass, "getSystemWindowInsetLeft", "()I");
+            jmethodID rightFn = env->GetMethodID(
+                    insetsClass, "getSystemWindowInsetRight", "()I");
+
+            if (env->ExceptionCheck())
+                env->ExceptionClear();
+
+            if (topFn) insetTop = env->CallIntMethod(insetsObj, topFn);
+            if (bottomFn) insetBottom = env->CallIntMethod(insetsObj, bottomFn);
+            if (leftFn) insetLeft = env->CallIntMethod(insetsObj, leftFn);
+            if (rightFn) insetRight = env->CallIntMethod(insetsObj, rightFn);
+
+            if (env->ExceptionCheck())
+                env->ExceptionClear();
+
+            jmethodID getDisplayCutout = env->GetMethodID(
+                    insetsClass, "getDisplayCutout",
+                    "()Landroid/view/DisplayCutout;");
+
+            if (env->ExceptionCheck())
+                env->ExceptionClear();
+
+            jobject cutout = getDisplayCutout ?
+                    env->CallObjectMethod(insetsObj, getDisplayCutout) :
+                    nullptr;
+
+            if (env->ExceptionCheck())
+                env->ExceptionClear();
+
+            if (cutout) {
+
+                jclass cutoutClass = env->GetObjectClass(cutout);
+
+                jmethodID safeTopFn = env->GetMethodID(
+                        cutoutClass, "getSafeInsetTop", "()I");
+                jmethodID safeBottomFn = env->GetMethodID(
+                        cutoutClass, "getSafeInsetBottom", "()I");
+                jmethodID safeLeftFn = env->GetMethodID(
+                        cutoutClass, "getSafeInsetLeft", "()I");
+                jmethodID safeRightFn = env->GetMethodID(
+                        cutoutClass, "getSafeInsetRight", "()I");
+
+                if (safeTopFn)
+                    insetTop = std::max(insetTop, env->CallIntMethod(cutout, safeTopFn));
+                if (safeBottomFn)
+                    insetBottom = std::max(insetBottom, env->CallIntMethod(cutout, safeBottomFn));
+                if (safeLeftFn)
+                    insetLeft = std::max(insetLeft, env->CallIntMethod(cutout, safeLeftFn));
+                if (safeRightFn)
+                    insetRight = std::max(insetRight, env->CallIntMethod(cutout, safeRightFn));
+
+                env->DeleteLocalRef(cutoutClass);
+                env->DeleteLocalRef(cutout);
+            }
+        }
+
+        env->DeleteLocalRef(insetsClass);
+        env->DeleteLocalRef(insetsObj);
+    }
+
+    LOGI(
+            "Window insets: top=%d bottom=%d left=%d right=%d",
+            insetTop, insetBottom, insetLeft, insetRight
+    );
+
+    env->DeleteLocalRef(viewClass);
+    env->DeleteLocalRef(decorView);
+    env->DeleteLocalRef(windowClass);
+    env->DeleteLocalRef(windowObj);
+    env->DeleteLocalRef(activityClass);
 }
 
 
@@ -695,6 +979,7 @@ static void drawAppList()
     constexpr uint32_t BACKGROUND_COLOR = 0xFF2E1E1E;
     constexpr uint32_t TEXT_COLOR = 0xFFF4D6CD;
     constexpr uint32_t ACCENT_COLOR = 0xFFF7A6CB;
+    constexpr uint32_t SUBTLE_COLOR = 0xFF86706C;
 
     // --------------------------------------------------------
     // Background
@@ -710,20 +995,17 @@ static void drawAppList()
     );
 
     // --------------------------------------------------------
-    // Header
+    // Header (pushed clear of the status bar / notch, and in
+    // from the side in case a cutout sits there in landscape)
     // --------------------------------------------------------
 
-    constexpr int SCREEN_PADDING_Y = 110;
-    constexpr int SCREEN_PADDING = 32;
-    constexpr int HEADER_HEIGHT = 110;
-    constexpr int SPACE_BLOCK = 42;
-    constexpr int DATE_HEIGHT = 32;
+    const int contentX = SCREEN_PADDING + insetLeft;
 
     drawText(
             buffer,
             "22:00",
-            SCREEN_PADDING,
-            SCREEN_PADDING_Y,
+            contentX,
+            SCREEN_PADDING_Y + insetTop,
             16,
             ACCENT_COLOR
     );
@@ -731,35 +1013,94 @@ static void drawAppList()
     drawText(
             buffer,
             "WEDNESDAY::2026-09-02::245/365",
-            SCREEN_PADDING,
-            SCREEN_PADDING_Y + HEADER_HEIGHT + SPACE_BLOCK,
+            contentX,
+            SCREEN_PADDING_Y + HEADER_HEIGHT + SPACE_BLOCK + insetTop,
             4,
             TEXT_COLOR
     );
 
     // --------------------------------------------------------
-    // App rows
+    // App rows -- scrollable, and clipped to sit strictly
+    // between the header and the navigation bar / bottom inset
     // --------------------------------------------------------
 
-    constexpr int ROW_HEIGHT = 100;
+    const int listTopY = listTop();
+    const int listBottomY = listBottom(height);
+    const int visibleHeight = std::max(0, listBottomY - listTopY);
+
+    const int contentHeight =
+            static_cast<int>(apps.size()) * ROW_HEIGHT;
+
+    maxScrollOffsetY =
+            static_cast<float>(std::max(0, contentHeight - visibleHeight));
+
+    scrollOffsetY = std::clamp(scrollOffsetY, 0.0f, maxScrollOffsetY);
+
+    // Rows are drawn one at a time below; clip so a row that's
+    // half-scrolled past the top/bottom edge gets cut off cleanly
+    // instead of painting over the header or the nav bar.
+    clipTop = listTopY;
+    clipBottom = listBottomY;
 
     for (size_t i = 0; i < apps.size(); ++i) {
 
         const int y =
-                SCREEN_PADDING_Y + HEADER_HEIGHT + SPACE_BLOCK + DATE_HEIGHT + 10 +
-                static_cast<int>(i) * ROW_HEIGHT;
+                listTopY +
+                static_cast<int>(i) * ROW_HEIGHT -
+                static_cast<int>(scrollOffsetY);
 
-        if (y >= height)
+        if (y + ROW_HEIGHT <= listTopY)
+            continue;
+
+        if (y >= listBottomY)
             break;
 
         // Application name
         drawText(
                 buffer,
                 apps[i].label,
-                SCREEN_PADDING,
+                contentX,
                 y + SCREEN_PADDING,
                 6,
                 TEXT_COLOR
+        );
+    }
+
+    // Restore the clip so anything drawn full-screen later isn't
+    // accidentally left restricted to the list viewport.
+    clipTop = 0;
+    clipBottom = height;
+
+    // --------------------------------------------------------
+    // Scroll indicator (only shown once the list actually
+    // overflows the visible area)
+    // --------------------------------------------------------
+
+    if (maxScrollOffsetY > 0.0f && visibleHeight > 0 && contentHeight > 0) {
+
+        constexpr int SCROLLBAR_WIDTH = 6;
+
+        const int trackX = width - insetRight - SCROLLBAR_WIDTH - 8;
+
+        const int thumbHeight = std::max(
+                40,
+                static_cast<int>(
+                        static_cast<float>(visibleHeight) * visibleHeight /
+                        static_cast<float>(contentHeight)));
+
+        const float scrollFraction = scrollOffsetY / maxScrollOffsetY;
+
+        const int thumbY = listTopY + static_cast<int>(
+                scrollFraction *
+                static_cast<float>(visibleHeight - thumbHeight));
+
+        fillRect(
+                buffer,
+                trackX,
+                thumbY,
+                SCROLLBAR_WIDTH,
+                thumbHeight,
+                ACCENT_COLOR
         );
     }
 
@@ -778,10 +1119,22 @@ static void handleTouch(
     if (apps.empty())
         return;
 
-    constexpr float ROW_HEIGHT = 140.0f;
+    const int screenHeight =
+            window ? ANativeWindow_getHeight(window) : 0;
+
+    const int listTopY = listTop();
+    const int listBottomY = listBottom(screenHeight);
+
+    // Ignore taps landing on the header or on/under the nav bar.
+    if (y < static_cast<float>(listTopY) ||
+        y >= static_cast<float>(listBottomY)) {
+        return;
+    }
 
     const int index =
-            static_cast<int>((y - 30.0f) / ROW_HEIGHT);
+            static_cast<int>(
+                    (y - static_cast<float>(listTopY) + scrollOffsetY) /
+                    static_cast<float>(ROW_HEIGHT));
 
     if (index < 0 ||
         index >= static_cast<int>(apps.size())) {
@@ -824,9 +1177,12 @@ static int32_t handleInput(
         case AMOTION_EVENT_ACTION_DOWN:
 
             touching = true;
+            isDragging = false;
 
             touchX = x;
             touchY = y;
+            touchStartY = y;
+            touchLastY = y;
 
             LOGI(
                     "TOUCH DOWN %.1f %.1f",
@@ -839,8 +1195,33 @@ static int32_t handleInput(
         case AMOTION_EVENT_ACTION_MOVE:
 
             if (touching) {
+
                 touchX = x;
                 touchY = y;
+
+                // Once the finger has moved far enough, treat this
+                // as a scroll rather than a tap on whatever row is
+                // under the initial touch-down point.
+                if (!isDragging &&
+                    std::fabs(y - touchStartY) > DRAG_THRESHOLD) {
+                    isDragging = true;
+                }
+
+                if (isDragging) {
+
+                    const float deltaY = y - touchLastY;
+
+                    scrollOffsetY = std::clamp(
+                            scrollOffsetY - deltaY,
+                            0.0f,
+                            maxScrollOffsetY
+                    );
+
+                    if (window)
+                        drawAppList();
+                }
+
+                touchLastY = y;
             }
 
             return 1;
@@ -852,19 +1233,25 @@ static int32_t handleInput(
                 touchX = x;
                 touchY = y;
 
-                handleTouch(
-                        touchX,
-                        touchY
-                );
+                // Only launch an app if this was a tap, not the
+                // end of a scroll gesture.
+                if (!isDragging) {
+                    handleTouch(
+                            touchX,
+                            touchY
+                    );
+                }
             }
 
             touching = false;
+            isDragging = false;
 
             return 1;
 
         case AMOTION_EVENT_ACTION_CANCEL:
 
             touching = false;
+            isDragging = false;
 
             return 1;
 
@@ -899,6 +1286,7 @@ static void handleAppCmd(
                         WINDOW_FORMAT_RGBA_8888
                 );
 
+                updateWindowInsets();
                 drawAppList();
             }
 
@@ -918,8 +1306,10 @@ static void handleAppCmd(
 
             LOGI("WINDOW_RESIZED");
 
-            if (window)
+            if (window) {
+                updateWindowInsets();
                 drawAppList();
+            }
 
             break;
 
@@ -928,8 +1318,10 @@ static void handleAppCmd(
 
             LOGI("GAINED_FOCUS");
 
-            if (window)
+            if (window) {
+                updateWindowInsets();
                 drawAppList();
+            }
 
             break;
 
