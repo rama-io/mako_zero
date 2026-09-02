@@ -1,152 +1,1442 @@
-#include <android/native_activity.h>
-#include <android/native_window.h>
+#include <android_native_app_glue.h>
 #include <android/log.h>
-#include <cstdint>
-#include <cstring>
+#include <android/native_window.h>
+#include <android/input.h>
+#include <android/asset_manager.h>
 
-#define LOG_TAG "Mako Forever"
+#include <jni.h>
+
+#include <algorithm>
+#include <cmath>
+#include <string>
+#include <vector>
+
+#define LOG_TAG "mako_zero"
+
+#define LOGI(...) \
+    __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+
+#define LOGE(...) \
+    __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+
+struct App {
+    std::string packageName;
+    std::string label;
+};
+
+static std::vector<App> apps;
+
+static ANativeWindow* window = nullptr;
+
+static bool touching = false;
+static float touchX = 0.0f;
+static float touchY = 0.0f;
+static float touchStartY = 0.0f;
+static float touchLastY = 0.0f;
+static bool isDragging = false;
+
+static JavaVM* javaVM = nullptr;
+static jobject nativeActivity = nullptr;
+
+// ============================================================
+// Shared layout constants
+// ============================================================
+//
+// These used to be re-declared separately (and inconsistently!)
+// inside drawAppList() and handleTouch(). They're pulled up here
+// so rendering and hit-testing always agree on where things are.
+//
+
+constexpr int SCREEN_PADDING_Y = 110;
+constexpr int SCREEN_PADDING = 32;
+constexpr int HEADER_HEIGHT = 110;
+constexpr int SPACE_BLOCK = 42;
+constexpr int DATE_HEIGHT = 32;
+constexpr int ROW_HEIGHT = 110;
+constexpr float DRAG_THRESHOLD = 16.0f;
+
+// System UI insets: status bar, display cutout (notch) and
+// navigation bar, in pixels. Queried from Java via
+// updateWindowInsets() and refreshed on window init/resize/focus.
+static int insetTop = 0;
+static int insetBottom = 0;
+static int insetLeft = 0;
+static int insetRight = 0;
+
+// Vertical scroll state for the app list.
+static float scrollOffsetY = 0.0f;
+static float maxScrollOffsetY = 0.0f;
+
+// Y-axis clip window applied inside fillRect() while the list is
+// being drawn, so rows can never paint over the header or under
+// the navigation bar.
+static int clipTop = 0;
+static int clipBottom = 1 << 30;
+
+// Top of the scrollable list, below the header and clear of the
+// status bar / notch.
+static int listTop()
+{
+    return SCREEN_PADDING_Y + HEADER_HEIGHT + SPACE_BLOCK +
+           DATE_HEIGHT + 10 + insetTop;
+}
+
+// Bottom of the scrollable list, clear of the navigation bar.
+static int listBottom(int screenHeight)
+{
+    return screenHeight - insetBottom;
+}
+
+// ============================================================
+// Simple bitmap font
+// ============================================================
+//
+// 5x7 font. Each character is represented by 7 rows of 5 bits.
+// This is intentionally tiny and dependency-free.
+//
 
 struct Glyph {
     char c;
     uint8_t rows[7];
 };
 
-static const Glyph kFont[] = {
-    {'M', {0b10001, 0b11011, 0b10101, 0b10001, 0b10001, 0b10001, 0b10001}},
-    {'A', {0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001}},
-    {'K', {0b10001, 0b10010, 0b10100, 0b11000, 0b10100, 0b10010, 0b10001}},
-    {'O', {0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110}},
-    {'F', {0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b10000}},
-    {'R', {0b11110, 0b10001, 0b10001, 0b11110, 0b10100, 0b10010, 0b10001}},
-    {'E', {0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b11111}},
-    {'V', {0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01010, 0b00100}},
-    {' ', {0, 0, 0, 0, 0, 0, 0}},
+static const Glyph FONT[] = {
+
+        {'A', {0x0E,0x11,0x11,0x1F,0x11,0x11,0x11}},
+        {'B', {0x1E,0x11,0x11,0x1E,0x11,0x11,0x1E}},
+        {'C', {0x0F,0x10,0x10,0x10,0x10,0x10,0x0F}},
+        {'D', {0x1E,0x11,0x11,0x11,0x11,0x11,0x1E}},
+        {'E', {0x1F,0x10,0x10,0x1E,0x10,0x10,0x1F}},
+        {'F', {0x1F,0x10,0x10,0x1E,0x10,0x10,0x10}},
+        {'G', {0x0F,0x10,0x10,0x17,0x11,0x11,0x0F}},
+        {'H', {0x11,0x11,0x11,0x1F,0x11,0x11,0x11}},
+        {'I', {0x1F,0x04,0x04,0x04,0x04,0x04,0x1F}},
+        {'J', {0x01,0x01,0x01,0x01,0x11,0x11,0x0E}},
+        {'K', {0x11,0x12,0x14,0x18,0x14,0x12,0x11}},
+        {'L', {0x10,0x10,0x10,0x10,0x10,0x10,0x1F}},
+        {'M', {0x11,0x1B,0x15,0x15,0x11,0x11,0x11}},
+        {'N', {0x11,0x19,0x15,0x13,0x11,0x11,0x11}},
+        {'O', {0x0E,0x11,0x11,0x11,0x11,0x11,0x0E}},
+        {'P', {0x1E,0x11,0x11,0x1E,0x10,0x10,0x10}},
+        {'Q', {0x0E,0x11,0x11,0x11,0x15,0x12,0x0D}},
+        {'R', {0x1E,0x11,0x11,0x1E,0x14,0x12,0x11}},
+        {'S', {0x0F,0x10,0x10,0x0E,0x01,0x01,0x1E}},
+        {'T', {0x1F,0x04,0x04,0x04,0x04,0x04,0x04}},
+        {'U', {0x11,0x11,0x11,0x11,0x11,0x11,0x0E}},
+        {'V', {0x11,0x11,0x11,0x11,0x11,0x0A,0x04}},
+        {'W', {0x11,0x11,0x11,0x15,0x15,0x15,0x0A}},
+        {'X', {0x11,0x11,0x0A,0x04,0x0A,0x11,0x11}},
+        {'Y', {0x11,0x11,0x0A,0x04,0x04,0x04,0x04}},
+        {'Z', {0x1F,0x01,0x02,0x04,0x08,0x10,0x1F}},
+
+        {'0', {0x0E,0x11,0x13,0x15,0x19,0x11,0x0E}},
+        {'1', {0x04,0x0C,0x04,0x04,0x04,0x04,0x0E}},
+        {'2', {0x0E,0x11,0x01,0x02,0x04,0x08,0x1F}},
+        {'3', {0x1E,0x01,0x01,0x0E,0x01,0x01,0x1E}},
+        {'4', {0x02,0x06,0x0A,0x12,0x1F,0x02,0x02}},
+        {'5', {0x1F,0x10,0x10,0x1E,0x01,0x01,0x1E}},
+        {'6', {0x0E,0x10,0x10,0x1E,0x11,0x11,0x0E}},
+        {'7', {0x1F,0x01,0x02,0x04,0x08,0x08,0x08}},
+        {'8', {0x0E,0x11,0x11,0x0E,0x11,0x11,0x0E}},
+        {'9', {0x0E,0x11,0x11,0x0F,0x01,0x01,0x0E}},
+
+        {' ', {0,0,0,0,0,0,0}},
+        {'.', {0,0,0,0,0,0x0C,0x0C}},
+        {'-', {0,0,0,0x1F,0,0,0}},
+        {'_', {0,0,0,0,0,0,0x1F}},
+        {':', {0x00, 0x0C, 0x0C, 0x00, 0x0C, 0x0C, 0x00}},
+        {'/', {0x01, 0x02, 0x04, 0x08, 0x10, 0x00, 0x00}},
+
 };
 
-static const uint8_t* glyphFor(char c) {
-    for (const auto& g : kFont) {
-        if (g.c == c) return g.rows;
+static const Glyph* findGlyph(char c)
+{
+    for (const auto& glyph : FONT) {
+        if (glyph.c == c)
+            return &glyph;
     }
-    return kFont[8].rows; // fall back to space
+
+    return nullptr;
 }
 
-static void drawGlyph(
-    ANativeWindow_Buffer* buffer,
-    const uint8_t* rows,
-    int originX,
-    int originY,
-    int scale,
-    uint32_t color
-) {
-    auto* pixels = static_cast<uint32_t*>(buffer->bits);
 
-    for (int row = 0; row < 7; row++) {
-        for (int col = 0; col < 5; col++) {
-            bool on = (rows[row] >> (4 - col)) & 1;
-            if (!on) continue;
+// ============================================================
+// Primitive drawing
+// ============================================================
 
-            for (int sy = 0; sy < scale; sy++) {
-                int py = originY + row * scale + sy;
-                if (py < 0 || py >= buffer->height) continue;
+static void fillRect(
+        ANativeWindow_Buffer& buffer,
+        int x,
+        int y,
+        int width,
+        int height,
+        uint32_t color)
+{
+    const int screenWidth = buffer.width;
+    const int screenHeight = buffer.height;
 
-                for (int sx = 0; sx < scale; sx++) {
-                    int px = originX + col * scale + sx;
-                    if (px < 0 || px >= buffer->width) continue;
+    int x0 = std::max(0, x);
+    int y0 = std::max({0, y, clipTop});
+    int x1 = std::min(screenWidth, x + width);
+    int y1 = std::min({screenHeight, y + height, clipBottom});
 
-                    pixels[py * buffer->stride + px] = color;
+    if (x0 >= x1 || y0 >= y1)
+        return;
+
+    uint32_t* pixels =
+            static_cast<uint32_t*>(buffer.bits);
+
+    for (int py = y0; py < y1; ++py) {
+
+        uint32_t* row =
+                pixels + py * buffer.stride;
+
+        for (int px = x0; px < x1; ++px)
+            row[px] = color;
+    }
+}
+
+
+static void drawText(
+        ANativeWindow_Buffer& buffer,
+        const std::string& text,
+        int x,
+        int y,
+        int scale,
+        uint32_t color)
+{
+    int cursorX = x;
+
+    for (char c : text) {
+
+        // Convert character to uppercase
+        c = static_cast<char>(
+                std::toupper(static_cast<unsigned char>(c))
+        );
+
+        const Glyph* glyph =
+                findGlyph(c);
+
+        if (!glyph) {
+            cursorX += 8 * scale;
+            continue;
+        }
+
+        for (int row = 0; row < 7; ++row) {
+
+            uint8_t bits =
+                    glyph->rows[row];
+
+            for (int col = 0; col < 5; ++col) {
+
+                if (bits & (1 << (4 - col))) {
+
+                    fillRect(
+                            buffer,
+                            cursorX + col * scale,
+                            y + row * scale,
+                            scale,
+                            scale,
+                            color
+                    );
                 }
             }
         }
+
+        cursorX += 7 * scale;
     }
 }
 
-static void drawText(
-    ANativeWindow_Buffer* buffer,
-    const char* text,
-    int scale,
-    uint32_t textColor,
-    uint32_t backgroundColor
-) {
-    // Fill the background first.
-    auto* pixels = static_cast<uint32_t*>(buffer->bits);
-    for (int y = 0; y < buffer->height; y++) {
-        for (int x = 0; x < buffer->width; x++) {
-            pixels[y * buffer->stride + x] = backgroundColor;
-        }
+
+// ============================================================
+// JNI helpers
+// ============================================================
+
+static JNIEnv* getJNIEnv()
+{
+    if (!javaVM)
+        return nullptr;
+
+    JNIEnv* env = nullptr;
+
+    jint result = javaVM->GetEnv(
+            reinterpret_cast<void**>(&env),
+            JNI_VERSION_1_6
+    );
+
+    if (result == JNI_OK)
+        return env;
+
+    if (result == JNI_EDETACHED) {
+        if (javaVM->AttachCurrentThread(&env, nullptr) != JNI_OK)
+            return nullptr;
+
+        return env;
     }
 
-    const int glyphWidth = 5 * scale;
-    const int glyphHeight = 7 * scale;
-    const int spacing = scale;
-
-    int len = static_cast<int>(strlen(text));
-    int totalWidth = len * glyphWidth + (len - 1) * spacing;
-
-    int x = (buffer->width - totalWidth) / 2;
-    int y = (buffer->height - glyphHeight) / 2;
-
-    for (int i = 0; i < len; i++) {
-        drawGlyph(buffer, glyphFor(text[i]), x, y, scale, textColor);
-        x += glyphWidth + spacing;
-    }
+    return nullptr;
 }
 
-static void renderMessage(ANativeWindow* window) {
-    if (window == nullptr) return;
 
-    ANativeWindow_setBuffersGeometry(window, 0, 0, WINDOW_FORMAT_RGBA_8888);
+// ============================================================
+// System window insets (status bar, display cutout / notch,
+// navigation bar)
+// ============================================================
+//
+// NativeActivity draws edge-to-edge with no decor, so the system
+// bars (and any notch/cutout) just overlay our buffer unless we
+// manually leave room for them. There's no NDK API for this, so
+// it has to be fetched from the Java side via
+// View.getRootWindowInsets().
+//
 
-    ANativeWindow_Buffer buffer;
-    if (ANativeWindow_lock(window, &buffer, nullptr) < 0) {
-        __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, "Failed to lock window buffer");
+static void updateWindowInsets()
+{
+    insetTop = 0;
+    insetBottom = 0;
+    insetLeft = 0;
+    insetRight = 0;
+
+    JNIEnv* env = getJNIEnv();
+
+    if (!env || !nativeActivity)
+        return;
+
+    jclass activityClass = env->GetObjectClass(nativeActivity);
+
+    // Activity.getWindow()
+    jmethodID getWindow = env->GetMethodID(
+            activityClass, "getWindow", "()Landroid/view/Window;");
+
+    jobject windowObj = getWindow ?
+            env->CallObjectMethod(nativeActivity, getWindow) : nullptr;
+
+    if (env->ExceptionCheck())
+        env->ExceptionClear();
+
+    if (!windowObj) {
+        env->DeleteLocalRef(activityClass);
         return;
     }
 
-    const uint32_t backgroundColor = 0xFF2B2B3A; // dark slate
-    const uint32_t textColor = 0xFF7FE0FF;       // light cyan
+    jclass windowClass = env->GetObjectClass(windowObj);
 
-    int scale = buffer.width / 120;
-    if (scale < 4) scale = 4;
+    // Window.getDecorView()
+    jmethodID getDecorView = env->GetMethodID(
+            windowClass, "getDecorView", "()Landroid/view/View;");
 
-    drawText(&buffer, "MAKO FOREVER", scale, textColor, backgroundColor);
+    jobject decorView = getDecorView ?
+            env->CallObjectMethod(windowObj, getDecorView) : nullptr;
+
+    if (env->ExceptionCheck())
+        env->ExceptionClear();
+
+    if (!decorView) {
+        env->DeleteLocalRef(windowClass);
+        env->DeleteLocalRef(windowObj);
+        env->DeleteLocalRef(activityClass);
+        return;
+    }
+
+    jclass viewClass = env->GetObjectClass(decorView);
+
+    // View.getRootWindowInsets() -- API 23+. Can return null if
+    // the view isn't attached yet.
+    jmethodID getRootWindowInsets = env->GetMethodID(
+            viewClass, "getRootWindowInsets",
+            "()Landroid/view/WindowInsets;");
+
+    jobject insetsObj = getRootWindowInsets ?
+            env->CallObjectMethod(decorView, getRootWindowInsets) :
+            nullptr;
+
+    if (env->ExceptionCheck())
+        env->ExceptionClear();
+
+    if (insetsObj) {
+
+        jclass insetsClass = env->GetObjectClass(insetsObj);
+        bool resolved = false;
+
+        // ----------------------------------------------------
+        // Preferred path (API 30+): WindowInsets.getInsets(int),
+        // combining systemBars() and displayCutout() so a notch
+        // is accounted for even when it doesn't overlap the
+        // status bar (e.g. a side cutout in landscape).
+        // ----------------------------------------------------
+
+        jmethodID getInsets = env->GetMethodID(
+                insetsClass, "getInsets", "(I)Landroid/graphics/Insets;");
+
+        if (env->ExceptionCheck())
+            env->ExceptionClear();
+
+        if (getInsets) {
+
+            jclass typeClass = env->FindClass("android/view/WindowInsets$Type");
+
+            if (env->ExceptionCheck())
+                env->ExceptionClear();
+
+            if (typeClass) {
+
+                jmethodID systemBarsFn = env->GetStaticMethodID(
+                        typeClass, "systemBars", "()I");
+                jmethodID cutoutFn = env->GetStaticMethodID(
+                        typeClass, "displayCutout", "()I");
+
+                if (systemBarsFn && cutoutFn) {
+
+                    jint mask =
+                            env->CallStaticIntMethod(typeClass, systemBarsFn) |
+                            env->CallStaticIntMethod(typeClass, cutoutFn);
+
+                    jobject insetsValue =
+                            env->CallObjectMethod(insetsObj, getInsets, mask);
+
+                    if (env->ExceptionCheck())
+                        env->ExceptionClear();
+
+                    if (insetsValue) {
+
+                        jclass valueClass = env->GetObjectClass(insetsValue);
+
+                        jfieldID leftF = env->GetFieldID(valueClass, "left", "I");
+                        jfieldID topF = env->GetFieldID(valueClass, "top", "I");
+                        jfieldID rightF = env->GetFieldID(valueClass, "right", "I");
+                        jfieldID bottomF = env->GetFieldID(valueClass, "bottom", "I");
+
+                        insetLeft = env->GetIntField(insetsValue, leftF);
+                        insetTop = env->GetIntField(insetsValue, topF);
+                        insetRight = env->GetIntField(insetsValue, rightF);
+                        insetBottom = env->GetIntField(insetsValue, bottomF);
+
+                        resolved = true;
+
+                        env->DeleteLocalRef(valueClass);
+                        env->DeleteLocalRef(insetsValue);
+                    }
+                }
+
+                env->DeleteLocalRef(typeClass);
+            }
+        }
+
+        // ----------------------------------------------------
+        // Fallback (API < 30, or the path above didn't resolve):
+        // legacy getSystemWindowInset*() plus, on API 28+, the
+        // DisplayCutout's own safe insets taken as a max, in case
+        // the notch isn't folded into the legacy value.
+        // ----------------------------------------------------
+
+        if (!resolved) {
+
+            jmethodID topFn = env->GetMethodID(
+                    insetsClass, "getSystemWindowInsetTop", "()I");
+            jmethodID bottomFn = env->GetMethodID(
+                    insetsClass, "getSystemWindowInsetBottom", "()I");
+            jmethodID leftFn = env->GetMethodID(
+                    insetsClass, "getSystemWindowInsetLeft", "()I");
+            jmethodID rightFn = env->GetMethodID(
+                    insetsClass, "getSystemWindowInsetRight", "()I");
+
+            if (env->ExceptionCheck())
+                env->ExceptionClear();
+
+            if (topFn) insetTop = env->CallIntMethod(insetsObj, topFn);
+            if (bottomFn) insetBottom = env->CallIntMethod(insetsObj, bottomFn);
+            if (leftFn) insetLeft = env->CallIntMethod(insetsObj, leftFn);
+            if (rightFn) insetRight = env->CallIntMethod(insetsObj, rightFn);
+
+            if (env->ExceptionCheck())
+                env->ExceptionClear();
+
+            jmethodID getDisplayCutout = env->GetMethodID(
+                    insetsClass, "getDisplayCutout",
+                    "()Landroid/view/DisplayCutout;");
+
+            if (env->ExceptionCheck())
+                env->ExceptionClear();
+
+            jobject cutout = getDisplayCutout ?
+                    env->CallObjectMethod(insetsObj, getDisplayCutout) :
+                    nullptr;
+
+            if (env->ExceptionCheck())
+                env->ExceptionClear();
+
+            if (cutout) {
+
+                jclass cutoutClass = env->GetObjectClass(cutout);
+
+                jmethodID safeTopFn = env->GetMethodID(
+                        cutoutClass, "getSafeInsetTop", "()I");
+                jmethodID safeBottomFn = env->GetMethodID(
+                        cutoutClass, "getSafeInsetBottom", "()I");
+                jmethodID safeLeftFn = env->GetMethodID(
+                        cutoutClass, "getSafeInsetLeft", "()I");
+                jmethodID safeRightFn = env->GetMethodID(
+                        cutoutClass, "getSafeInsetRight", "()I");
+
+                if (safeTopFn)
+                    insetTop = std::max(insetTop, env->CallIntMethod(cutout, safeTopFn));
+                if (safeBottomFn)
+                    insetBottom = std::max(insetBottom, env->CallIntMethod(cutout, safeBottomFn));
+                if (safeLeftFn)
+                    insetLeft = std::max(insetLeft, env->CallIntMethod(cutout, safeLeftFn));
+                if (safeRightFn)
+                    insetRight = std::max(insetRight, env->CallIntMethod(cutout, safeRightFn));
+
+                env->DeleteLocalRef(cutoutClass);
+                env->DeleteLocalRef(cutout);
+            }
+        }
+
+        env->DeleteLocalRef(insetsClass);
+        env->DeleteLocalRef(insetsObj);
+    }
+
+    LOGI(
+            "Window insets: top=%d bottom=%d left=%d right=%d",
+            insetTop, insetBottom, insetLeft, insetRight
+    );
+
+    env->DeleteLocalRef(viewClass);
+    env->DeleteLocalRef(decorView);
+    env->DeleteLocalRef(windowClass);
+    env->DeleteLocalRef(windowObj);
+    env->DeleteLocalRef(activityClass);
+}
+
+
+// ============================================================
+// Get launchable applications
+// ============================================================
+
+static void loadApps()
+{
+    JNIEnv* env = getJNIEnv();
+
+    if (!env || !nativeActivity) {
+        LOGE("Could not get JNI environment");
+        return;
+    }
+
+    jobject activity = nativeActivity;
+
+    // Activity.getPackageManager()
+    jclass activityClass = env->GetObjectClass(activity);
+
+    jmethodID getPackageManager =
+            env->GetMethodID(
+                    activityClass,
+                    "getPackageManager",
+                    "()Landroid/content/pm/PackageManager;"
+            );
+
+    if (!getPackageManager) {
+        LOGE("getPackageManager not found");
+        env->DeleteLocalRef(activityClass);
+        return;
+    }
+
+    jobject packageManager =
+            env->CallObjectMethod(
+                    activity,
+                    getPackageManager
+            );
+
+    if (env->ExceptionCheck()) {
+        env->ExceptionDescribe();
+        env->ExceptionClear();
+        env->DeleteLocalRef(activityClass);
+        return;
+    }
+
+    // Intent("android.intent.action.MAIN")
+    jclass intentClass = env->FindClass(
+            "android/content/Intent"
+    );
+
+    jmethodID intentConstructor =
+            env->GetMethodID(
+                    intentClass,
+                    "<init>",
+                    "(Ljava/lang/String;)V"
+            );
+
+    jstring mainAction =
+            env->NewStringUTF(
+                    "android.intent.action.MAIN"
+            );
+
+    jobject intent =
+            env->NewObject(
+                    intentClass,
+                    intentConstructor,
+                    mainAction
+            );
+
+    // Intent.addCategory("android.intent.category.LAUNCHER")
+    jmethodID addCategory =
+            env->GetMethodID(
+                    intentClass,
+                    "addCategory",
+                    "(Ljava/lang/String;)Landroid/content/Intent;"
+            );
+
+    jstring launcherCategory =
+            env->NewStringUTF(
+                    "android.intent.category.LAUNCHER"
+            );
+
+    env->CallObjectMethod(
+            intent,
+            addCategory,
+            launcherCategory
+    );
+
+    if (env->ExceptionCheck()) {
+        env->ExceptionDescribe();
+        env->ExceptionClear();
+    }
+
+    // PackageManager.queryIntentActivities(...)
+    jclass pmClass =
+            env->GetObjectClass(packageManager);
+
+    jmethodID queryIntentActivities =
+            env->GetMethodID(
+                    pmClass,
+                    "queryIntentActivities",
+                    "(Landroid/content/Intent;I)Ljava/util/List;"
+            );
+
+    if (!queryIntentActivities) {
+        LOGE("queryIntentActivities not found");
+
+        env->DeleteLocalRef(pmClass);
+        env->DeleteLocalRef(packageManager);
+        env->DeleteLocalRef(intent);
+        env->DeleteLocalRef(intentClass);
+        env->DeleteLocalRef(mainAction);
+        env->DeleteLocalRef(launcherCategory);
+        env->DeleteLocalRef(activityClass);
+
+        return;
+    }
+
+    // 0 = no special flags
+    jobject result =
+            env->CallObjectMethod(
+                    packageManager,
+                    queryIntentActivities,
+                    intent,
+                    0
+            );
+
+    if (env->ExceptionCheck()) {
+        env->ExceptionDescribe();
+        env->ExceptionClear();
+
+        LOGE("queryIntentActivities failed");
+
+        return;
+    }
+
+    // java.util.List.size()
+    jclass listClass =
+            env->GetObjectClass(result);
+
+    jmethodID listSize =
+            env->GetMethodID(
+                    listClass,
+                    "size",
+                    "()I"
+            );
+
+    jmethodID listGet =
+            env->GetMethodID(
+                    listClass,
+                    "get",
+                    "(I)Ljava/lang/Object;"
+            );
+
+    const jint count =
+            env->CallIntMethod(result, listSize);
+
+    LOGI("Found %d launchable applications", count);
+
+    apps.clear();
+
+    // ResolveInfo
+    jclass resolveInfoClass =
+            env->FindClass(
+                    "android/content/pm/ResolveInfo"
+            );
+
+    jfieldID activityInfoField =
+            env->GetFieldID(
+                    resolveInfoClass,
+                    "activityInfo",
+                    "Landroid/content/pm/ActivityInfo;"
+            );
+
+    for (jint i = 0; i < count; ++i) {
+
+        jobject resolveInfo =
+                env->CallObjectMethod(
+                        result,
+                        listGet,
+                        i
+                );
+
+        if (!resolveInfo)
+            continue;
+
+        jobject activityInfo =
+                env->GetObjectField(
+                        resolveInfo,
+                        activityInfoField
+                );
+
+        if (!activityInfo) {
+            env->DeleteLocalRef(resolveInfo);
+            continue;
+        }
+
+        jclass activityInfoClass =
+                env->GetObjectClass(activityInfo);
+
+        // ActivityInfo.packageName
+        jfieldID packageNameField =
+                env->GetFieldID(
+                        activityInfoClass,
+                        "packageName",
+                        "Ljava/lang/String;"
+                );
+
+        jstring packageName =
+                static_cast<jstring>(
+                        env->GetObjectField(
+                                activityInfo,
+                                packageNameField
+                        )
+                );
+
+        // ActivityInfo.loadLabel(PackageManager)
+        jmethodID loadLabel =
+                env->GetMethodID(
+                        activityInfoClass,
+                        "loadLabel",
+                        "(Landroid/content/pm/PackageManager;)"
+                        "Ljava/lang/CharSequence;"
+                );
+
+        jobject labelObject =
+                env->CallObjectMethod(
+                        activityInfo,
+                        loadLabel,
+                        packageManager
+                );
+
+        std::string package;
+        std::string label;
+
+        if (packageName) {
+            const char* chars =
+                    env->GetStringUTFChars(
+                            packageName,
+                            nullptr
+                    );
+
+            if (chars) {
+                package = chars;
+                env->ReleaseStringUTFChars(
+                        packageName,
+                        chars
+                );
+            }
+        }
+
+        if (labelObject) {
+            jclass stringClass =
+                    env->FindClass("java/lang/Object");
+
+            jmethodID toString =
+                    env->GetMethodID(
+                            stringClass,
+                            "toString",
+                            "()Ljava/lang/String;"
+                    );
+
+            jstring labelString =
+                    static_cast<jstring>(
+                            env->CallObjectMethod(
+                                    labelObject,
+                                    toString
+                            )
+                    );
+
+            if (labelString) {
+                const char* chars =
+                        env->GetStringUTFChars(
+                                labelString,
+                                nullptr
+                        );
+
+                if (chars) {
+                    label = chars;
+
+                    env->ReleaseStringUTFChars(
+                            labelString,
+                            chars
+                    );
+                }
+
+                env->DeleteLocalRef(labelString);
+            }
+
+            env->DeleteLocalRef(stringClass);
+            env->DeleteLocalRef(labelObject);
+        }
+
+        if (!package.empty()) {
+
+            if (label.empty())
+                label = package;
+
+            apps.push_back({
+                                   package,
+                                   label
+                           });
+
+            LOGI(
+                    "App: %s (%s)",
+                    label.c_str(),
+                    package.c_str()
+            );
+        }
+
+        env->DeleteLocalRef(activityInfoClass);
+        env->DeleteLocalRef(activityInfo);
+        env->DeleteLocalRef(resolveInfo);
+
+        if (packageName)
+            env->DeleteLocalRef(packageName);
+    }
+
+    std::sort(
+            apps.begin(),
+            apps.end(),
+            [](const App& a, const App& b) {
+                return a.label < b.label;
+            }
+    );
+
+    LOGI(
+            "Loaded %zu applications",
+            apps.size()
+    );
+
+    // Cleanup
+    env->DeleteLocalRef(resolveInfoClass);
+    env->DeleteLocalRef(listClass);
+    env->DeleteLocalRef(result);
+    env->DeleteLocalRef(pmClass);
+    env->DeleteLocalRef(packageManager);
+    env->DeleteLocalRef(intent);
+    env->DeleteLocalRef(intentClass);
+    env->DeleteLocalRef(mainAction);
+    env->DeleteLocalRef(launcherCategory);
+    env->DeleteLocalRef(activityClass);
+}
+
+
+// ============================================================
+// Launch an application
+// ============================================================
+
+static void launchApp(const App& app)
+{
+    JNIEnv* env = getJNIEnv();
+
+    if (!env || !nativeActivity)
+        return;
+
+    LOGI(
+            "Launching %s (%s)",
+            app.label.c_str(),
+            app.packageName.c_str()
+    );
+
+    jclass activityClass =
+            env->GetObjectClass(nativeActivity);
+
+    jmethodID getPackageManager =
+            env->GetMethodID(
+                    activityClass,
+                    "getPackageManager",
+                    "()Landroid/content/pm/PackageManager;"
+            );
+
+    jobject packageManager =
+            env->CallObjectMethod(
+                    nativeActivity,
+                    getPackageManager
+            );
+
+    jclass pmClass =
+            env->GetObjectClass(packageManager);
+
+    // getLaunchIntentForPackage(String)
+    jmethodID getLaunchIntent =
+            env->GetMethodID(
+                    pmClass,
+                    "getLaunchIntentForPackage",
+                    "(Ljava/lang/String;)"
+                    "Landroid/content/Intent;"
+            );
+
+    jstring packageName =
+            env->NewStringUTF(
+                    app.packageName.c_str()
+            );
+
+    jobject intent =
+            env->CallObjectMethod(
+                    packageManager,
+                    getLaunchIntent,
+                    packageName
+            );
+
+    if (env->ExceptionCheck()) {
+        env->ExceptionDescribe();
+        env->ExceptionClear();
+    }
+
+    if (!intent) {
+        LOGE(
+                "No launch intent for %s",
+                app.packageName.c_str()
+        );
+    } else {
+
+        jmethodID startActivity =
+                env->GetMethodID(
+                        activityClass,
+                        "startActivity",
+                        "(Landroid/content/Intent;)V"
+                );
+
+        env->CallVoidMethod(
+                nativeActivity,
+                startActivity,
+                intent
+        );
+
+        if (env->ExceptionCheck()) {
+            env->ExceptionDescribe();
+            env->ExceptionClear();
+        }
+    }
+
+    if (intent)
+        env->DeleteLocalRef(intent);
+
+    env->DeleteLocalRef(packageName);
+    env->DeleteLocalRef(pmClass);
+    env->DeleteLocalRef(packageManager);
+    env->DeleteLocalRef(activityClass);
+}
+
+
+// ============================================================
+// Rendering
+// ============================================================
+
+static void drawAppList()
+{
+    if (!window)
+        return;
+
+    ANativeWindow_Buffer buffer;
+
+    if (ANativeWindow_lock(
+            window,
+            &buffer,
+            nullptr) != 0) {
+        return;
+    }
+
+    const int width = buffer.width;
+    const int height = buffer.height;
+
+    // --------------------------------------------------------
+    // Colors
+    // --------------------------------------------------------
+
+    constexpr uint32_t BACKGROUND_COLOR = 0xFF2E1E1E;
+    constexpr uint32_t TEXT_COLOR = 0xFFF4D6CD;
+    constexpr uint32_t ACCENT_COLOR = 0xFFF7A6CB;
+    constexpr uint32_t SUBTLE_COLOR = 0xFF86706C;
+
+    // --------------------------------------------------------
+    // Background
+    // --------------------------------------------------------
+
+    fillRect(
+            buffer,
+            0,
+            0,
+            width,
+            height,
+            BACKGROUND_COLOR
+    );
+
+    // --------------------------------------------------------
+    // Header (pushed clear of the status bar / notch, and in
+    // from the side in case a cutout sits there in landscape)
+    // --------------------------------------------------------
+
+    const int contentX = SCREEN_PADDING + insetLeft;
+
+    drawText(
+            buffer,
+            "22:00",
+            contentX,
+            SCREEN_PADDING_Y + insetTop,
+            16,
+            ACCENT_COLOR
+    );
+
+    drawText(
+            buffer,
+            "WEDNESDAY::2026-09-02::245/365",
+            contentX,
+            SCREEN_PADDING_Y + HEADER_HEIGHT + SPACE_BLOCK + insetTop,
+            4,
+            TEXT_COLOR
+    );
+
+    // --------------------------------------------------------
+    // App rows -- scrollable, and clipped to sit strictly
+    // between the header and the navigation bar / bottom inset
+    // --------------------------------------------------------
+
+    const int listTopY = listTop();
+    const int listBottomY = listBottom(height);
+    const int visibleHeight = std::max(0, listBottomY - listTopY);
+
+    const int contentHeight =
+            static_cast<int>(apps.size()) * ROW_HEIGHT;
+
+    maxScrollOffsetY =
+            static_cast<float>(std::max(0, contentHeight - visibleHeight));
+
+    scrollOffsetY = std::clamp(scrollOffsetY, 0.0f, maxScrollOffsetY);
+
+    // Rows are drawn one at a time below; clip so a row that's
+    // half-scrolled past the top/bottom edge gets cut off cleanly
+    // instead of painting over the header or the nav bar.
+    clipTop = listTopY;
+    clipBottom = listBottomY;
+
+    for (size_t i = 0; i < apps.size(); ++i) {
+
+        const int y =
+                listTopY +
+                static_cast<int>(i) * ROW_HEIGHT -
+                static_cast<int>(scrollOffsetY);
+
+        if (y + ROW_HEIGHT <= listTopY)
+            continue;
+
+        if (y >= listBottomY)
+            break;
+
+        // Application name
+        drawText(
+                buffer,
+                apps[i].label,
+                contentX,
+                y + SCREEN_PADDING,
+                6,
+                TEXT_COLOR
+        );
+    }
+
+    // Restore the clip so anything drawn full-screen later isn't
+    // accidentally left restricted to the list viewport.
+    clipTop = 0;
+    clipBottom = height;
+
+    // --------------------------------------------------------
+    // Scroll indicator (only shown once the list actually
+    // overflows the visible area)
+    // --------------------------------------------------------
+
+    if (maxScrollOffsetY > 0.0f && visibleHeight > 0 && contentHeight > 0) {
+
+        constexpr int SCROLLBAR_WIDTH = 6;
+
+        const int trackX = width - insetRight - SCROLLBAR_WIDTH - 8;
+
+        const int thumbHeight = std::max(
+                40,
+                static_cast<int>(
+                        static_cast<float>(visibleHeight) * visibleHeight /
+                        static_cast<float>(contentHeight)));
+
+        const float scrollFraction = scrollOffsetY / maxScrollOffsetY;
+
+        const int thumbY = listTopY + static_cast<int>(
+                scrollFraction *
+                static_cast<float>(visibleHeight - thumbHeight));
+
+        fillRect(
+                buffer,
+                trackX,
+                thumbY,
+                SCROLLBAR_WIDTH,
+                thumbHeight,
+                ACCENT_COLOR
+        );
+    }
 
     ANativeWindow_unlockAndPost(window);
 }
 
-static void onNativeWindowCreated(ANativeActivity* activity, ANativeWindow* window) {
-    __android_log_print(ANDROID_LOG_INFO, LOG_TAG, "Native window created");
-    renderMessage(window);
-}
 
-static void onNativeWindowRedrawNeeded(ANativeActivity* activity, ANativeWindow* window) {
-    renderMessage(window);
-}
+// ============================================================
+// Touch handling
+// ============================================================
 
-static void onCreate(
-    ANativeActivity* activity,
-    void* savedState,
-    size_t savedStateSize
-) {
-    __android_log_print(
-        ANDROID_LOG_INFO,
-        LOG_TAG,
-        "Mako Forever started"
+static void handleTouch(
+        float x,
+        float y)
+{
+    if (apps.empty())
+        return;
+
+    const int screenHeight =
+            window ? ANativeWindow_getHeight(window) : 0;
+
+    const int listTopY = listTop();
+    const int listBottomY = listBottom(screenHeight);
+
+    // Ignore taps landing on the header or on/under the nav bar.
+    if (y < static_cast<float>(listTopY) ||
+        y >= static_cast<float>(listBottomY)) {
+        return;
+    }
+
+    const int index =
+            static_cast<int>(
+                    (y - static_cast<float>(listTopY) + scrollOffsetY) /
+                    static_cast<float>(ROW_HEIGHT));
+
+    if (index < 0 ||
+        index >= static_cast<int>(apps.size())) {
+        return;
+    }
+
+    LOGI(
+            "Selected app %d: %s",
+            index,
+            apps[index].label.c_str()
     );
+
+    launchApp(apps[index]);
 }
 
-extern "C"
-void ANativeActivity_onCreate(
-    ANativeActivity* activity,
-    void* savedState,
-    size_t savedStateSize
-) {
-    activity->callbacks->onStart = nullptr;
-    activity->callbacks->onNativeWindowCreated = onNativeWindowCreated;
-    activity->callbacks->onNativeWindowRedrawNeeded = onNativeWindowRedrawNeeded;
 
-    onCreate(
-        activity,
-        savedState,
-        savedStateSize
-    );
+static int32_t handleInput(
+        struct android_app* app,
+        AInputEvent* event)
+{
+    if (AInputEvent_getType(event) !=
+        AINPUT_EVENT_TYPE_MOTION) {
+        return 0;
+    }
+
+    const int32_t action =
+            AMotionEvent_getAction(event);
+
+    const int32_t maskedAction =
+            action & AMOTION_EVENT_ACTION_MASK;
+
+    const float x =
+            AMotionEvent_getX(event, 0);
+
+    const float y =
+            AMotionEvent_getY(event, 0);
+
+    switch (maskedAction) {
+
+        case AMOTION_EVENT_ACTION_DOWN:
+
+            touching = true;
+            isDragging = false;
+
+            touchX = x;
+            touchY = y;
+            touchStartY = y;
+            touchLastY = y;
+
+            LOGI(
+                    "TOUCH DOWN %.1f %.1f",
+                    x,
+                    y
+            );
+
+            return 1;
+
+        case AMOTION_EVENT_ACTION_MOVE:
+
+            if (touching) {
+
+                touchX = x;
+                touchY = y;
+
+                // Once the finger has moved far enough, treat this
+                // as a scroll rather than a tap on whatever row is
+                // under the initial touch-down point.
+                if (!isDragging &&
+                    std::fabs(y - touchStartY) > DRAG_THRESHOLD) {
+                    isDragging = true;
+                }
+
+                if (isDragging) {
+
+                    const float deltaY = y - touchLastY;
+
+                    scrollOffsetY = std::clamp(
+                            scrollOffsetY - deltaY,
+                            0.0f,
+                            maxScrollOffsetY
+                    );
+
+                    if (window)
+                        drawAppList();
+                }
+
+                touchLastY = y;
+            }
+
+            return 1;
+
+        case AMOTION_EVENT_ACTION_UP:
+
+            if (touching) {
+
+                touchX = x;
+                touchY = y;
+
+                // Only launch an app if this was a tap, not the
+                // end of a scroll gesture.
+                if (!isDragging) {
+                    handleTouch(
+                            touchX,
+                            touchY
+                    );
+                }
+            }
+
+            touching = false;
+            isDragging = false;
+
+            return 1;
+
+        case AMOTION_EVENT_ACTION_CANCEL:
+
+            touching = false;
+            isDragging = false;
+
+            return 1;
+
+        default:
+            return 0;
+    }
+}
+
+
+// ============================================================
+// Android lifecycle
+// ============================================================
+
+static void handleAppCmd(
+        struct android_app* app,
+        int32_t cmd)
+{
+    switch (cmd) {
+
+        case APP_CMD_INIT_WINDOW:
+
+            LOGI("INIT_WINDOW");
+
+            window = app->window;
+
+            if (window) {
+
+                ANativeWindow_setBuffersGeometry(
+                        window,
+                        ANativeWindow_getWidth(window),
+                        ANativeWindow_getHeight(window),
+                        WINDOW_FORMAT_RGBA_8888
+                );
+
+                updateWindowInsets();
+                drawAppList();
+            }
+
+            break;
+
+
+        case APP_CMD_TERM_WINDOW:
+
+            LOGI("TERM_WINDOW");
+
+            window = nullptr;
+
+            break;
+
+
+        case APP_CMD_WINDOW_RESIZED:
+
+            LOGI("WINDOW_RESIZED");
+
+            if (window) {
+                updateWindowInsets();
+                drawAppList();
+            }
+
+            break;
+
+
+        case APP_CMD_GAINED_FOCUS:
+
+            LOGI("GAINED_FOCUS");
+
+            if (window) {
+                updateWindowInsets();
+                drawAppList();
+            }
+
+            break;
+
+
+        case APP_CMD_LOST_FOCUS:
+
+            LOGI("LOST_FOCUS");
+
+            break;
+
+
+        default:
+            break;
+    }
+}
+
+
+// ============================================================
+// Native entry point
+// ============================================================
+
+void android_main(
+        struct android_app* app)
+{
+    LOGI("Mako launcher starting");
+
+    app_dummy();
+
+    // --------------------------------------------------------
+    // Obtain JavaVM / Activity
+    // --------------------------------------------------------
+
+    ANativeActivity* activity =
+            app->activity;
+
+    javaVM =
+            activity->vm;
+
+    JNIEnv* env = getJNIEnv();
+
+    if (env) {
+        nativeActivity =
+                env->NewGlobalRef(
+                        activity->clazz
+                );
+    }
+
+    // --------------------------------------------------------
+    // Install callbacks
+    // --------------------------------------------------------
+
+    app->onAppCmd =
+            handleAppCmd;
+
+    app->onInputEvent =
+            handleInput;
+
+    // --------------------------------------------------------
+    // Load installed apps
+    // --------------------------------------------------------
+
+    loadApps();
+
+    // --------------------------------------------------------
+    // Main Android event loop
+    // --------------------------------------------------------
+
+    while (true) {
+
+        int events;
+
+        struct android_poll_source* source;
+
+        /*
+         * timeout = -1 means sleep until Android actually
+         * has something to process.
+         *
+         * This is important: we're NOT spinning at 100% CPU.
+         */
+
+        const int ident =
+                ALooper_pollOnce(
+                        -1,
+                        nullptr,
+                        &events,
+                        reinterpret_cast<void**>(&source)
+                );
+
+        if (source)
+            source->process(
+                    app,
+                    source
+            );
+
+        /*
+         * APP_CMD_DESTROY is Android telling us the Activity
+         * is going away.
+         */
+        if (app->destroyRequested) {
+
+            LOGI(
+                    "Destroy requested"
+            );
+
+            break;
+        }
+    }
+
+    if (env && nativeActivity) {
+        env->DeleteGlobalRef(
+                nativeActivity
+        );
+
+        nativeActivity = nullptr;
+    }
+
+    LOGI("Mako launcher stopped");
 }
