@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-#define LOG_TAG "mako_forever"
+#define LOG_TAG "mako_zero"
 
 #define LOGI(...) \
     __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -746,7 +746,7 @@ static void drawAppList()
 
     drawText(
             buffer,
-            "MAKO FOREVER",
+            "Mako Zero",
             32,
             28,
             6,

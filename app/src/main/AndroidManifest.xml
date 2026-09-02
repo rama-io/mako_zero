@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <application
-        android:label="MakoForever">
+        android:label="MakoZero">
 
         <activity
             android:name="android.app.NativeActivity"
@@ -10,7 +10,7 @@
 
             <meta-data
                 android:name="android.app.lib_name"
-                android:value="mako_forever" />
+                android:value="mako_zero" />
 
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

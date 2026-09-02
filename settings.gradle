@@ -13,5 +13,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "MakoForever"
+rootProject.name = "MakoZero"
 include ':app'

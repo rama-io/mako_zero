@@ -1,12 +1,12 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace 'com.rama.mako_forever'
+    namespace 'com.rama.mako_zero'
     compileSdk 36
     ndkVersion '27.0.12077973'
 
     defaultConfig {
-        applicationId 'com.rama.mako_forever'
+        applicationId 'com.rama.mako_zero'
         minSdk 21
         targetSdk 36
 
