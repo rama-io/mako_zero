@@ -23,6 +23,7 @@ import com.rama.mako_zero.managers.ThemeManager;
 import com.rama.mako_zero.managers.ZoomManager;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -225,11 +226,23 @@ public class AppListAdapter extends BaseAdapter {
             if (apps == null || apps.isEmpty()) {
                 continue;
             }
+            sortWithinGroup(apps);
             items.add(new HeaderRow(groupId, groupManager.getGroupLabel(groupId), false, apps.size()));
             if (groupManager.isGroupExpanded(groupId)) {
                 items.addAll(apps);
             }
         }
+    }
+
+    private void sortWithinGroup(List<AppsProvider.AppEntry> apps) {
+        Collections.sort(apps, (a, b) -> {
+            int byLevel = a.getStatusLevel() - b.getStatusLevel(); // -1, 0, 1, 2
+            if (byLevel != 0) return byLevel;
+            int byLabel = groupManager.getAppLabel(a).compareToIgnoreCase(groupManager.getAppLabel(b));
+            if (byLabel != 0) return byLabel;
+            if (a.isOtherProfile != b.isOtherProfile) return a.isOtherProfile ? 1 : -1;
+            return a.key.compareTo(b.key);
+        });
     }
 
     private void buildSystemItems(List<AppsProvider.AppEntry> allApps) {
@@ -245,6 +258,7 @@ public class AppListAdapter extends BaseAdapter {
                 if (current != null) apps.add(current); // drop apps removed since the snapshot
             }
             if (apps.isEmpty()) continue;
+            sortWithinGroup(apps);
             items.add(new HeaderRow(id, SystemGroups.labelOf(id), true, apps.size()));
             if (groupManager.isSystemGroupExpanded(id)) {
                 items.addAll(apps);
