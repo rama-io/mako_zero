@@ -42,7 +42,10 @@ public class AppsProvider {
             this.key = key;
             this.isOtherProfile = user != null;
             this.profileInitial = profileInitial;
+            this.appLabel = label;
         }
+
+        public String appLabel;
 
         public boolean unavailable;
 
@@ -60,10 +63,12 @@ public class AppsProvider {
             return LEVEL_NONE;
         }
 
+        /** A ghost is a tracked app that is no longer reported by the system. */
         public boolean isGhost() {
             return applicationInfo == null;
         }
 
+        /** Package is in the "stopped" state (force-stopped or never started since install). */
         public boolean isStopped() {
             return applicationInfo != null && (applicationInfo.flags & ApplicationInfo.FLAG_STOPPED) != 0;
         }
@@ -132,9 +137,14 @@ public class AppsProvider {
             ResolveInfo info = resolved.get(i);
             String packageName = info.activityInfo.packageName;
             String activityName = info.activityInfo.name;
-            String label = FontManager.sanitizeForFont(info.loadLabel(pm).toString());
+            boolean unavailable = !info.activityInfo.enabled || !info.activityInfo.applicationInfo.enabled;
+            String appLabel = FontManager.sanitizeForFont(info.activityInfo.applicationInfo.loadLabel(pm).toString());
+            // A disabled entry is not what the user sees on a normal launcher, so use the real app name
+            // instead of whatever disguise label the alias carries.
+            String label = unavailable ? appLabel : FontManager.sanitizeForFont(info.loadLabel(pm).toString());
             AppEntry entry = new AppEntry(packageName, activityName, label, info.activityInfo.applicationInfo);
-            entry.unavailable = !info.activityInfo.enabled || !info.activityInfo.applicationInfo.enabled;
+            entry.appLabel = appLabel;
+            entry.unavailable = unavailable;
             apps.add(entry);
         }
         if (profileApps != null) {
@@ -145,6 +155,11 @@ public class AppsProvider {
         return apps;
     }
 
+    /**
+     * One package can expose several launcher entries (icon aliases, many of them disabled).
+     * Drop disabled entries when the same app also has an enabled one; if every entry is disabled,
+     * keep just one so the app still shows (dimmed). Multiple enabled entries are left alone.
+     */
     private static List<AppEntry> dedupe(List<AppEntry> apps) {
         Set<String> hasEnabled = new HashSet<>();
         for (int i = 0; i < apps.size(); i++) {
@@ -161,6 +176,10 @@ public class AppsProvider {
         return out;
     }
 
+    /**
+     * Everything the system reports plus every app we have ever seen that is now gone
+     * (uninstalled, or disabled and hidden by the system). Ghosts stay until removed by hand.
+     */
     public List<AppEntry> getTracked() {
         PrefsManager prefs = PrefsManager.getInstance(context);
         List<AppEntry> apps = getAll();
@@ -169,10 +188,11 @@ public class AppsProvider {
         for (int i = 0; i < apps.size(); i++) {
             AppEntry a = apps.get(i);
             present.add(a.key);
-            toSync.add(new String[]{a.key, a.packageName, a.activityName, a.label, a.profileInitial == null ? "" : a.profileInitial});
+            toSync.add(new String[]{a.key, a.packageName, a.activityName, a.appLabel, a.profileInitial == null ? "" : a.profileInitial});
         }
         prefs.syncTracked(toSync);
 
+        // Hide private-space ghosts while it is locked, otherwise locking would reveal its apps here.
         boolean hideProfileGhosts = isPrivateSpaceLocked();
         List<String> keys = prefs.getTrackedKeys();
         for (int i = 0; i < keys.size(); i++) {
@@ -182,6 +202,7 @@ public class AppsProvider {
             if (otherProfile && hideProfileGhosts) continue;
             String[] meta = prefs.getTrackedMeta(key);
             if (meta == null) continue;
+            // For other-profile ghosts the non-null user marker only makes isOtherProfile true; ProfileApps.launch ignores it.
             AppEntry ghost = new AppEntry(meta[0], meta[1], meta[2], null,
                     otherProfile ? Boolean.TRUE : null, key, meta[3].length() == 0 ? null : meta[3]);
             ghost.unavailable = true;
@@ -192,6 +213,7 @@ public class AppsProvider {
         return apps;
     }
 
+    /** Still known to the system but not launchable (disabled) -> 1, otherwise gone -> 0. */
     private int ghostLevelFor(String packageName) {
         try {
             context.getPackageManager().getApplicationInfo(packageName, 0);
