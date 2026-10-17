@@ -46,6 +46,20 @@ public class AppsProvider {
 
         public boolean unavailable;
 
+        public static final int LEVEL_NONE = -1;
+        public static final int LEVEL_UNINSTALLED = 0;
+        public static final int LEVEL_DISABLED = 1;
+        public static final int LEVEL_NOT_RUNNING = 2;
+
+        public int ghostLevel = LEVEL_UNINSTALLED;
+
+        public int getStatusLevel() {
+            if (isGhost()) return ghostLevel;
+            if (unavailable) return LEVEL_DISABLED;
+            if (isStopped()) return LEVEL_NOT_RUNNING;
+            return LEVEL_NONE;
+        }
+
         public boolean isGhost() {
             return applicationInfo == null;
         }
@@ -171,10 +185,20 @@ public class AppsProvider {
             AppEntry ghost = new AppEntry(meta[0], meta[1], meta[2], null,
                     otherProfile ? Boolean.TRUE : null, key, meta[3].length() == 0 ? null : meta[3]);
             ghost.unavailable = true;
+            ghost.ghostLevel = otherProfile ? AppEntry.LEVEL_UNINSTALLED : ghostLevelFor(meta[0]);
             apps.add(ghost);
         }
         sort(apps);
         return apps;
+    }
+
+    private int ghostLevelFor(String packageName) {
+        try {
+            context.getPackageManager().getApplicationInfo(packageName, 0);
+            return AppEntry.LEVEL_DISABLED;
+        } catch (PackageManager.NameNotFoundException | RuntimeException e) {
+            return AppEntry.LEVEL_UNINSTALLED;
+        }
     }
 
     private static void sort(List<AppEntry> apps) {

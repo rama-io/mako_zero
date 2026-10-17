@@ -350,8 +350,10 @@ public class AppListAdapter extends BaseAdapter {
         }
         final TextView label = view.findViewById(R.id.app_label);
         label.setTypeface(FontManager.getJersey25(context));
-        label.setTextColor((app.unavailable || app.isStopped()) ? ThemeManager.currentPalette(context).disabled : ThemeManager.currentPalette(context).text);
-        label.setText(groupManager.getDisplayLabel(app));
+        label.setTextColor(app.getStatusLevel() != AppsProvider.AppEntry.LEVEL_NONE ? ThemeManager.currentPalette(context).disabled : ThemeManager.currentPalette(context).text);
+        int level = app.getStatusLevel();
+        String prefix = level == AppsProvider.AppEntry.LEVEL_NONE ? "" : "(" + level + ") ";
+        label.setText(prefix + groupManager.getDisplayLabel(app));
         View emptySpace = view.findViewById(R.id.empty_space);
         ImageView selectionCheck = view.findViewById(R.id.selection_check);
         if (!multiSelectMode) {

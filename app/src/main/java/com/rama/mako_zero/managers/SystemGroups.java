@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Set;
 
 public final class SystemGroups {
+    public static final String UNINSTALLED = "uninstalled";
     public static final String DISABLED = "disabled";
     public static final String NOT_RUNNING = "not_running";
 
@@ -60,14 +61,16 @@ public final class SystemGroups {
     public static List<String> allIds() {
         List<String> ids = new ArrayList<>();
         for (Def d : DEFS) ids.add(d.id);
+        ids.add(UNINSTALLED);
         ids.add(DISABLED);
         ids.add(NOT_RUNNING);
         return ids;
     }
 
     public static String labelOf(String id) {
-        if (DISABLED.equals(id)) return "Disabled";
-        if (NOT_RUNNING.equals(id)) return "Not running";
+        if (UNINSTALLED.equals(id)) return "0 - Uninstalled";
+        if (DISABLED.equals(id)) return "1 - Disabled";
+        if (NOT_RUNNING.equals(id)) return "2 - Not running";
         for (Def d : DEFS) if (d.id.equals(id)) return d.label;
         return id;
     }
@@ -80,11 +83,16 @@ public final class SystemGroups {
 
         for (int i = 0; i < apps.size(); i++) {
             AppsProvider.AppEntry app = apps.get(i);
-            if (app.unavailable) {
-                result.get(DISABLED).add(app);
+            int level = app.getStatusLevel();
+            if (level == AppsProvider.AppEntry.LEVEL_UNINSTALLED) {
+                result.get(UNINSTALLED).add(app);
                 continue; // can't say anything reliable about permissions of a disabled/missing app
             }
-            if (app.isStopped()) {
+            if (level == AppsProvider.AppEntry.LEVEL_DISABLED) {
+                result.get(DISABLED).add(app);
+                continue;
+            }
+            if (level == AppsProvider.AppEntry.LEVEL_NOT_RUNNING) {
                 result.get(NOT_RUNNING).add(app);
             }
             if (app.isOtherProfile) continue; // permissions of other profiles aren't readable from here
