@@ -152,6 +152,78 @@ public class PrefsManager {
         prefs.edit().putBoolean(key("group", groupId, "keep_expanded"), value).commit();
     }
 
+    public List<String> getTrackedKeys() {
+        return splitCsv(prefs.getString(key("apps", "tracked"), ""));
+    }
+
+    public void syncTracked(List<String[]> entries) {
+        LinkedHashSet<String> keys = new LinkedHashSet<>(getTrackedKeys());
+        SharedPreferences.Editor editor = prefs.edit();
+        boolean dirty = false;
+        for (int i = 0; i < entries.size(); i++) {
+            String[] e = entries.get(i);
+            if (keys.add(e[0])) dirty = true;
+            dirty |= putIfChanged(editor, key("app", e[0], "pkg"), e[1]);
+            dirty |= putIfChanged(editor, key("app", e[0], "act"), e[2]);
+            dirty |= putIfChanged(editor, key("app", e[0], "orig_label"), e[3]);
+            dirty |= putIfChanged(editor, key("app", e[0], "initial"), e[4]);
+        }
+        if (dirty) {
+            editor.putString(key("apps", "tracked"), joinCsv(keys)).commit();
+        }
+    }
+
+    private boolean putIfChanged(SharedPreferences.Editor editor, String k, String value) {
+        if (value.equals(prefs.getString(k, null))) return false;
+        editor.putString(k, value);
+        return true;
+    }
+
+    /** { packageName, activityName, label, profileInitial } or null if unknown. */
+    public String[] getTrackedMeta(String appKey) {
+        String pkg = prefs.getString(key("app", appKey, "pkg"), null);
+        if (pkg == null) return null;
+        return new String[]{
+                pkg,
+                prefs.getString(key("app", appKey, "act"), ""),
+                prefs.getString(key("app", appKey, "orig_label"), pkg),
+                prefs.getString(key("app", appKey, "initial"), "")
+        };
+    }
+
+    public void untrackApp(String appKey) {
+        List<String> keys = getTrackedKeys();
+        keys.remove(appKey);
+        prefs.edit()
+                .putString(key("apps", "tracked"), joinCsv(keys))
+                .remove(key("app", appKey, "pkg"))
+                .remove(key("app", appKey, "act"))
+                .remove(key("app", appKey, "orig_label"))
+                .remove(key("app", appKey, "initial"))
+                .remove(key("app", appKey, "group"))
+                .remove(key("app", appKey, "label"))
+                .commit();
+    }
+
+    public static final String LIST_MODE_CUSTOM = "custom";
+    public static final String LIST_MODE_SYSTEM = "system";
+
+    public String getListMode() {
+        return prefs.getString("list:mode", LIST_MODE_CUSTOM);
+    }
+
+    public void setListMode(String mode) {
+        prefs.edit().putString("list:mode", mode).commit();
+    }
+
+    public boolean isSystemGroupExpanded(String id) {
+        return prefs.getBoolean(key("sysgroup", id, "expanded"), false);
+    }
+
+    public void setSystemGroupExpanded(String id, boolean expanded) {
+        prefs.edit().putBoolean(key("sysgroup", id, "expanded"), expanded).commit();
+    }
+
     public String getTheme() {
         return prefs.getString(KEY_THEME, PrefTheme.DEFAULT);
     }

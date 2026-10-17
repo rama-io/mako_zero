@@ -47,7 +47,7 @@ public class Main extends BaseActivity implements AppListAdapter.Listener {
     private final BroadcastReceiver profileStateReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            adapter.refresh();
+            adapter.reload();
             updateLockButton();
         }
     };
@@ -55,6 +55,8 @@ public class Main extends BaseActivity implements AppListAdapter.Listener {
     private TextView selectedCountView;
     private View renameButton;
     private View appSettingsButton;
+    private View removeButton;
+    private ListView appList;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,7 +65,7 @@ public class Main extends BaseActivity implements AppListAdapter.Listener {
         setContentView(R.layout.activity_main);
         SystemBars.applyInsets(findViewById(R.id.root));
         FontManager.apply(findViewById(R.id.root), FontManager.getJersey25(this));
-        ListView appList = findViewById(R.id.app_list);
+        appList = findViewById(R.id.app_list);
         lockArea = findViewById(R.id.lock_area);
         lockIcon = findViewById(R.id.lock_icon);
         lockArea.setOnClickListener(v -> {
@@ -78,6 +80,17 @@ public class Main extends BaseActivity implements AppListAdapter.Listener {
         adapter.setListener(this);
         appList.setAdapter(adapter);
         appList.setOnItemClickListener((parent, view, position, id) -> adapter.performRowAction(position));
+        View timeView = findViewById(R.id.time);
+        timeView.setOnClickListener(v -> {
+            v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+            adapter.toggleListMode();
+            appList.setSelection(0);
+        });
+        timeView.setOnLongClickListener(v -> {
+            v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+            onOpenSettingsRequested();
+            return true;
+        });
         findViewById(R.id.home_header).setOnLongClickListener(v -> {
             v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
             onOpenSettingsRequested();
@@ -103,6 +116,13 @@ public class Main extends BaseActivity implements AppListAdapter.Listener {
         selectedCountView = findViewById(R.id.selected_count);
         renameButton = findViewById(R.id.rename_btn);
         appSettingsButton = findViewById(R.id.app_settings);
+        removeButton = findViewById(R.id.remove_btn);
+        removeButton.setOnClickListener(v -> {
+            int removed = adapter.removeSelectedGhosts();
+            if (removed > 0) {
+                Toast.makeText(this, getString(R.string.toast_apps_removed, removed), Toast.LENGTH_SHORT).show();
+            }
+        });
         View moveToGroupButton = findViewById(R.id.move_to_group_button);
         View cancelButton = findViewById(R.id.multi_select_cancel_button);
         cancelButton.setOnClickListener(v -> adapter.exitMultiSelectMode());
@@ -133,7 +153,7 @@ public class Main extends BaseActivity implements AppListAdapter.Listener {
         if (groupManager.shouldCollapseGroupsOnHome()) {
             groupManager.collapseAllGroups();
         }
-        adapter.refresh();
+        adapter.reload();
         updateLockButton();
         ThemeManager.applyTheme(this, findViewById(R.id.root));
     }
@@ -143,7 +163,7 @@ public class Main extends BaseActivity implements AppListAdapter.Listener {
         super.onNewIntent(intent);
         if (groupManager.shouldCollapseGroupsOnHome()) {
             groupManager.collapseAllGroups();
-            adapter.refresh();
+            adapter.reload();
         }
     }
 
@@ -209,6 +229,7 @@ public class Main extends BaseActivity implements AppListAdapter.Listener {
         int singleVisibility = count == 1 ? View.VISIBLE : View.GONE;
         renameButton.setVisibility(singleVisibility);
         appSettingsButton.setVisibility(singleVisibility);
+        removeButton.setVisibility(adapter.canRemoveSelection() ? View.VISIBLE : View.GONE);
     }
 
     private void openAppDetails(AppsProvider.AppEntry app) {

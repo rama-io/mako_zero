@@ -59,8 +59,30 @@ public class GroupManager {
         }
     }
 
+    public boolean isSystemGroupExpanded(String id) {
+        return prefs.isSystemGroupExpanded(id);
+    }
+
+    public void toggleSystemGroupExpanded(String id) {
+        boolean shouldExpand = !prefs.isSystemGroupExpanded(id);
+        prefs.setSystemGroupExpanded(id, shouldExpand);
+        if (shouldExpand && prefs.isOnlyOneGroupOpenEnabled()) {
+            List<String> ids = SystemGroups.allIds();
+            for (int i = 0; i < ids.size(); i++) {
+                if (!ids.get(i).equals(id)) prefs.setSystemGroupExpanded(ids.get(i), false);
+            }
+        }
+    }
+
     public boolean collapseAllGroups() {
         boolean changed = false;
+        List<String> sysIds = SystemGroups.allIds();
+        for (int i = 0; i < sysIds.size(); i++) {
+            if (prefs.isSystemGroupExpanded(sysIds.get(i))) {
+                prefs.setSystemGroupExpanded(sysIds.get(i), false);
+                changed = true;
+            }
+        }
         List<String> ids = getGroupIds();
         for (int i = 0; i < ids.size(); i++) {
             String id = ids.get(i);
@@ -109,7 +131,7 @@ public class GroupManager {
 
     public void deleteGroup(String groupId, String newGroupId) {
         if (PrefsManager.DEFAULT_GROUP_ID.equals(groupId)) return;
-        List<AppsProvider.AppEntry> allApps = appsProvider.getAll();
+        List<AppsProvider.AppEntry> allApps = appsProvider.getTracked();
         for (int i = 0; i < allApps.size(); i++) {
             AppsProvider.AppEntry app = allApps.get(i);
             if (groupId.equals(prefs.getAppGroupId(app.key))) {

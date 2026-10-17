@@ -99,6 +99,18 @@
         </FrameLayout>
 
         <FrameLayout
+            android:id="@+id/remove_btn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:padding="12sp"
+            android:visibility="gone">
+
+            <ImageView
+                style="@style/Icon24"
+                android:src="@drawable/px_times" />
+        </FrameLayout>
+
+        <FrameLayout
             android:id="@+id/move_to_group_button"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

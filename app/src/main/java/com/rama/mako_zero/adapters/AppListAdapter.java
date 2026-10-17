@@ -18,6 +18,7 @@ import com.rama.mako_zero.managers.AppsProvider;
 import com.rama.mako_zero.managers.FontManager;
 import com.rama.mako_zero.managers.GroupManager;
 import com.rama.mako_zero.managers.PrefsManager;
+import com.rama.mako_zero.managers.SystemGroups;
 import com.rama.mako_zero.managers.ThemeManager;
 import com.rama.mako_zero.managers.ZoomManager;
 
@@ -45,10 +46,14 @@ public class AppListAdapter extends BaseAdapter {
     public static class HeaderRow {
         public final String groupId;
         public final String label;
+        public final boolean system;
+        public final int count;
 
-        HeaderRow(String groupId, String label) {
+        HeaderRow(String groupId, String label, boolean system, int count) {
             this.groupId = groupId;
             this.label = label;
+            this.system = system;
+            this.count = count;
         }
     }
 
@@ -59,6 +64,8 @@ public class AppListAdapter extends BaseAdapter {
     private final Set<String> selectedKeys = new HashSet<>();
     private boolean multiSelectMode = false;
     private Listener listener;
+    private final Map<String, AppsProvider.AppEntry> trackedByKey = new HashMap<>();
+    private Map<String, List<AppsProvider.AppEntry>> systemSnapshot;
 
     public AppListAdapter(Context context, AppsProvider appsProvider, GroupManager groupManager) {
         this.context = context;
@@ -97,15 +104,46 @@ public class AppListAdapter extends BaseAdapter {
         if (selectedKeys.size() != 1) {
             return null;
         }
-        String key = selectedKeys.iterator().next();
-        List<AppsProvider.AppEntry> all = appsProvider.getAll();
-        for (int i = 0; i < all.size(); i++) {
-            AppsProvider.AppEntry app = all.get(i);
-            if (app.key.equals(key)) {
-                return app;
-            }
+        return trackedByKey.get(selectedKeys.iterator().next());
+    }
+
+    public boolean isSystemMode() {
+        return PrefsManager.LIST_MODE_SYSTEM.equals(PrefsManager.getInstance(context).getListMode());
+    }
+
+    public void toggleListMode() {
+        PrefsManager prefs = PrefsManager.getInstance(context);
+        prefs.setListMode(isSystemMode() ? PrefsManager.LIST_MODE_CUSTOM : PrefsManager.LIST_MODE_SYSTEM);
+        if (multiSelectMode) {
+            exitMultiSelectMode(); // refreshes
+        } else {
+            refresh();
         }
-        return null;
+    }
+
+    public boolean canRemoveSelection() {
+        if (selectedKeys.isEmpty()) return false;
+        for (String key : selectedKeys) {
+            AppsProvider.AppEntry app = trackedByKey.get(key);
+            if (app == null || !app.isGhost()) return false;
+        }
+        return true;
+    }
+
+    public int removeSelectedGhosts() {
+        if (!canRemoveSelection()) return 0;
+        PrefsManager prefs = PrefsManager.getInstance(context);
+        int removed = selectedKeys.size();
+        for (String key : selectedKeys) {
+            prefs.untrackApp(key);
+        }
+        exitMultiSelectMode();
+        return removed;
+    }
+
+    public void reload() {
+        systemSnapshot = null;
+        refresh();
     }
 
     public void exitMultiSelectMode() {
@@ -151,7 +189,21 @@ public class AppListAdapter extends BaseAdapter {
     }
 
     public void refresh() {
-        List<AppsProvider.AppEntry> allApps = appsProvider.getAll();
+        List<AppsProvider.AppEntry> allApps = appsProvider.getTracked();
+        trackedByKey.clear();
+        for (int i = 0; i < allApps.size(); i++) {
+            trackedByKey.put(allApps.get(i).key, allApps.get(i));
+        }
+        items.clear();
+        if (isSystemMode()) {
+            buildSystemItems(allApps);
+        } else {
+            buildCustomItems(allApps);
+        }
+        notifyDataSetChanged();
+    }
+
+    private void buildCustomItems(List<AppsProvider.AppEntry> allApps) {
         Map<String, List<AppsProvider.AppEntry>> byGroup = new HashMap<String, List<AppsProvider.AppEntry>>();
         for (int i = 0; i < allApps.size(); i++) {
             AppsProvider.AppEntry app = allApps.get(i);
@@ -163,7 +215,6 @@ public class AppListAdapter extends BaseAdapter {
             }
             bucket.add(app);
         }
-        items.clear();
         List<String> groupIds = groupManager.getGroupIds();
         for (int i = 0; i < groupIds.size(); i++) {
             String groupId = groupIds.get(i);
@@ -174,12 +225,31 @@ public class AppListAdapter extends BaseAdapter {
             if (apps == null || apps.isEmpty()) {
                 continue;
             }
-            items.add(new HeaderRow(groupId, groupManager.getGroupLabel(groupId)));
+            items.add(new HeaderRow(groupId, groupManager.getGroupLabel(groupId), false, apps.size()));
             if (groupManager.isGroupExpanded(groupId)) {
                 items.addAll(apps);
             }
         }
-        notifyDataSetChanged();
+    }
+
+    private void buildSystemItems(List<AppsProvider.AppEntry> allApps) {
+        // The permission scan is the expensive part; reuse it for header taps, redo it on reload().
+        if (systemSnapshot == null) {
+            systemSnapshot = SystemGroups.compute(context, allApps);
+        }
+        for (Map.Entry<String, List<AppsProvider.AppEntry>> group : systemSnapshot.entrySet()) {
+            String id = group.getKey();
+            List<AppsProvider.AppEntry> apps = new ArrayList<>(group.getValue().size());
+            for (AppsProvider.AppEntry snap : group.getValue()) {
+                AppsProvider.AppEntry current = trackedByKey.get(snap.key);
+                if (current != null) apps.add(current); // drop apps removed since the snapshot
+            }
+            if (apps.isEmpty()) continue;
+            items.add(new HeaderRow(id, SystemGroups.labelOf(id), true, apps.size()));
+            if (groupManager.isSystemGroupExpanded(id)) {
+                items.addAll(apps);
+            }
+        }
     }
 
     @Override
@@ -225,24 +295,30 @@ public class AppListAdapter extends BaseAdapter {
         TextView label = view.findViewById(R.id.header_text);
         label.setTypeface(FontManager.getJersey25(context));
         label.setTextColor(ThemeManager.currentPalette(context).accent);
-        boolean pinned = groupManager.isGroupKeepExpanded(groupId);
-        boolean expanded = groupManager.isGroupExpanded(groupId);
+        boolean pinned = !header.system && groupManager.isGroupKeepExpanded(groupId);
+        boolean expanded = header.system ? groupManager.isSystemGroupExpanded(groupId) : groupManager.isGroupExpanded(groupId);
         String symbol = pinned ? "" : (context.getString(expanded ? R.string.label_collapse_indicator : R.string.label_expand_indicator) + " ");
         String indicator = symbol + "------ ";
-        label.setText(indicator + header.label.toUpperCase(Locale.getDefault()));
+        String suffix = header.system ? " (" + header.count + ")" : "";
+        label.setText(indicator + header.label.toUpperCase(Locale.getDefault()) + suffix);
         if (pinned) {
             view.setOnClickListener(null);
             view.setClickable(false);
         } else {
-            view.setOnClickListener(v -> handleHeaderClick(groupId));
+            final boolean system = header.system;
+            view.setOnClickListener(v -> handleHeaderClick(groupId, system));
         }
         ZoomManager.apply(context, view);
         return view;
     }
 
-    private void handleHeaderClick(String groupId) {
-        if (groupManager.isGroupKeepExpanded(groupId)) return;
-        groupManager.toggleGroupExpanded(groupId);
+    private void handleHeaderClick(String groupId, boolean system) {
+        if (system) {
+            groupManager.toggleSystemGroupExpanded(groupId);
+        } else {
+            if (groupManager.isGroupKeepExpanded(groupId)) return;
+            groupManager.toggleGroupExpanded(groupId);
+        }
         refresh();
     }
 
@@ -250,7 +326,7 @@ public class AppListAdapter extends BaseAdapter {
         if (isLongPressTail(SystemClock.uptimeMillis())) return;
         if (multiSelectMode) {
             toggleSelection(app.key);
-        } else if (!appsProvider.launch(app)) {
+        } else if (app.unavailable || !appsProvider.launch(app)) {
             if (listener != null) {
                 listener.onAppLaunchFailed();
             }
@@ -261,7 +337,7 @@ public class AppListAdapter extends BaseAdapter {
         if (position < 0 || position >= items.size()) return;
         Object item = items.get(position);
         if (item instanceof HeaderRow) {
-            handleHeaderClick(((HeaderRow) item).groupId);
+            handleHeaderClick(((HeaderRow) item).groupId, ((HeaderRow) item).system);
         } else if (item instanceof AppsProvider.AppEntry) {
             handleAppClick((AppsProvider.AppEntry) item);
         }
@@ -274,7 +350,7 @@ public class AppListAdapter extends BaseAdapter {
         }
         final TextView label = view.findViewById(R.id.app_label);
         label.setTypeface(FontManager.getJersey25(context));
-        label.setTextColor(ThemeManager.currentPalette(context).text);
+        label.setTextColor((app.unavailable || app.isStopped()) ? ThemeManager.currentPalette(context).disabled : ThemeManager.currentPalette(context).text);
         label.setText(groupManager.getDisplayLabel(app));
         View emptySpace = view.findViewById(R.id.empty_space);
         ImageView selectionCheck = view.findViewById(R.id.selection_check);
@@ -285,7 +361,7 @@ public class AppListAdapter extends BaseAdapter {
             selectionCheck.setVisibility(isSelected ? View.VISIBLE : View.INVISIBLE);
         }
         LinearLayout apiRow = view.findViewById(R.id.api);
-        if (PrefsManager.getInstance(context).hasApiIndicatorsVisible()) {
+        if (!app.isGhost() && PrefsManager.getInstance(context).hasApiIndicatorsVisible()) {
             TextView minApiText = view.findViewById(R.id.min_api);
             TextView apiSeparator = view.findViewById(R.id.api_separator);
             TextView targetApiText = view.findViewById(R.id.target_api);
@@ -301,7 +377,7 @@ public class AppListAdapter extends BaseAdapter {
             apiRow.setVisibility(View.GONE);
         }
         TextView appSize = view.findViewById(R.id.app_size);
-        if (PrefsManager.getInstance(context).hasAppSizeVisible()) {
+        if (!app.isGhost() && PrefsManager.getInstance(context).hasAppSizeVisible()) {
             long sizeBytes = appsProvider.getAppSizeBytes(app);
             appSize.setVisibility(View.VISIBLE);
             appSize.setText(Formatter.formatShortFileSize(context, sizeBytes));

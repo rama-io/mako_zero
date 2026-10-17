@@ -48,6 +48,7 @@
     <string name="toast_unable_to_launch_app">Unable to open app</string>
     <string name="toast_group_label_updated">Group renamed</string>
     <string name="toast_select_target_group">Select a group to move apps into</string>
+    <string name="toast_apps_removed">Removed %1$d from list</string>
     <string name="toast_unable_open_settings">Unable to open settings</string>
 
     <string name="multi_select_count">%1$d selected</string>
