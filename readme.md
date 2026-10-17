@@ -16,11 +16,12 @@ Designed to support Android API 5 (Android 2.0) through the latest Android versi
 
 - Open Settings: Long-press an empty area of the App List.
 - Switch lists: Click the clock to alternate between the two lists. The first displays your custom app list; the second organizes apps by permissions.
-- Privacy levels: Numbers indicate an app’s privacy level:
-- - (0) Uninstalled: The app is not installed on the device.
-- - (1) Disabled: The app is installed but disabled.
-- - (2) Not running: The app is enabled and can run, but is not currently running.
-- - No number: The app is running.
+
+### Privacy levels: Numbers indicate an app’s privacy level
+- (0) Uninstalled: The app is not installed on the device.
+- (1) Disabled: The app is installed but disabled.
+- (2) Not running: The app is enabled and can run, but is not currently running.
+- No number: The app is running.
 > Lower numbers indicate a higher level of privacy, from uninstalled (0) to enabled but not running (2).
 
 ---
