@@ -15,6 +15,7 @@ Designed to support Android API 5 (Android 2.0) through the latest Android versi
 ## Usage
 
 - Long-press in an empty area of the **App List** to open **Settings**.
+- Click clock to alternate between lists, the first list is the custom one the second one shows apps organized by permissions.
 - Watch the **[Promo](https://youtu.be/u0R5YNajFHY)** for a quick
   overview.
 - Join the **[Discord Community](https://discord.gg/zFFupY8PFE)** for support and updates.
