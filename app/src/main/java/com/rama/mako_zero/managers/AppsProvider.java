@@ -63,12 +63,11 @@ public class AppsProvider {
             return LEVEL_NONE;
         }
 
-        /** A ghost is a tracked app that is no longer reported by the system. */
+        // A ghost is a tracked app that is no longer reported by the system.
         public boolean isGhost() {
             return applicationInfo == null;
         }
 
-        /** Package is in the "stopped" state (force-stopped or never started since install). */
         public boolean isStopped() {
             return applicationInfo != null && (applicationInfo.flags & ApplicationInfo.FLAG_STOPPED) != 0;
         }
@@ -202,7 +201,6 @@ public class AppsProvider {
             if (otherProfile && hideProfileGhosts) continue;
             String[] meta = prefs.getTrackedMeta(key);
             if (meta == null) continue;
-            // For other-profile ghosts the non-null user marker only makes isOtherProfile true; ProfileApps.launch ignores it.
             AppEntry ghost = new AppEntry(meta[0], meta[1], meta[2], null,
                     otherProfile ? Boolean.TRUE : null, key, meta[3].length() == 0 ? null : meta[3]);
             ghost.unavailable = true;

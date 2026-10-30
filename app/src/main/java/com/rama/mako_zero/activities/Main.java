@@ -6,11 +6,9 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
-import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.GestureDetector;
-import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.AdapterView;
@@ -22,7 +20,9 @@ import android.widget.Toast;
 
 import com.rama.mako_zero.R;
 import com.rama.mako_zero.adapters.AppListAdapter;
+import com.rama.mako_zero.helpers.AppSettings;
 import com.rama.mako_zero.helpers.DialogHelper;
+import com.rama.mako_zero.helpers.Haptics;
 import com.rama.mako_zero.helpers.SystemBars;
 import com.rama.mako_zero.managers.AppsProvider;
 import com.rama.mako_zero.managers.BatteryStatusManager;
@@ -68,10 +68,7 @@ public class Main extends BaseActivity implements AppListAdapter.Listener {
         appList = findViewById(R.id.app_list);
         lockArea = findViewById(R.id.lock_area);
         lockIcon = findViewById(R.id.lock_icon);
-        lockArea.setOnClickListener(v -> {
-            v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-            togglePrivateSpace();
-        });
+        lockArea.setOnClickListener(Haptics.onClick(v -> togglePrivateSpace()));
         clockManager = new ClockManager(findViewById(R.id.time), findViewById(R.id.date));
         batteryStatusManager = new BatteryStatusManager(this, findViewById(R.id.battery));
         groupManager = new GroupManager(this);
@@ -81,21 +78,18 @@ public class Main extends BaseActivity implements AppListAdapter.Listener {
         appList.setAdapter(adapter);
         appList.setOnItemClickListener((parent, view, position, id) -> adapter.performRowAction(position));
         View timeView = findViewById(R.id.time);
-        timeView.setOnClickListener(v -> {
-            v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+        timeView.setOnClickListener(Haptics.onClick(v -> {
             adapter.toggleListMode();
             appList.setSelection(0);
-        });
-        timeView.setOnLongClickListener(v -> {
-            v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+        }));
+        timeView.setOnLongClickListener(Haptics.onLongClick(v -> {
             onOpenSettingsRequested();
             return true;
-        });
-        findViewById(R.id.home_header).setOnLongClickListener(v -> {
-            v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+        }));
+        findViewById(R.id.home_header).setOnLongClickListener(Haptics.onLongClick(v -> {
             onOpenSettingsRequested();
             return true;
-        });
+        }));
         final ListView appListRef = appList;
         final GestureDetector emptySpaceDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
             @Override
@@ -103,7 +97,7 @@ public class Main extends BaseActivity implements AppListAdapter.Listener {
                 if (adapter.isMultiSelectMode()) return;
                 int position = appListRef.pointToPosition((int) event.getX(), (int) event.getY());
                 if (position == AdapterView.INVALID_POSITION) {
-                    appListRef.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+                    Haptics.longPress(appListRef);
                     onOpenSettingsRequested();
                 }
             }
@@ -235,9 +229,7 @@ public class Main extends BaseActivity implements AppListAdapter.Listener {
     private void openAppDetails(AppsProvider.AppEntry app) {
         if (appsProvider.openAppDetails(app)) return;
         try {
-            Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", app.packageName, null));
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(intent);
+            startActivity(AppSettings.appDetails(app.packageName));
         } catch (Exception e) {
             Toast.makeText(this, R.string.toast_unable_open_settings, Toast.LENGTH_SHORT).show();
         }
