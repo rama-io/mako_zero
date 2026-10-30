@@ -10,7 +10,7 @@ android {
     defaultConfig {
         applicationId "com.rama.${app_name}_zero"
         targetSdk 37
-        versionCode 4
+        versionCode 5
         versionName "${current_year}.${versionCode}"
 
         resConfigs "en"
@@ -21,7 +21,7 @@ android {
     productFlavors {
         forever {
             dimension "androidVersion"
-            minSdk 5
+            minSdk 4
         }
 
         zero {
