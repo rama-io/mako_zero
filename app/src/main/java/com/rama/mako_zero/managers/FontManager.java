@@ -69,10 +69,10 @@ public class FontManager {
 
     public static String sanitizeForFont(String text) {
         if (text == null) return null;
-        return sanitize(text, Build.VERSION.SDK_INT >= 9);
+        return sanitize(text);
     }
 
-    static String sanitize(String text, boolean canDecompose) {
+    static String sanitize(String text) {
         StringBuilder mapped = new StringBuilder(text.length());
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
@@ -84,7 +84,7 @@ public class FontManager {
             }
         }
         String withoutMarks = mapped.toString();
-        if (canDecompose) {
+        if (Build.VERSION.SDK_INT >= 9) {
             withoutMarks = Normalizer.normalize(withoutMarks, Normalizer.Form.NFD).replaceAll("\\p{InCombiningDiacriticalMarks}+", "");
         }
         StringBuilder result = new StringBuilder(withoutMarks.length());

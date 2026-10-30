@@ -138,8 +138,6 @@ public class AppsProvider {
             String activityName = info.activityInfo.name;
             boolean unavailable = !info.activityInfo.enabled || !info.activityInfo.applicationInfo.enabled;
             String appLabel = FontManager.sanitizeForFont(info.activityInfo.applicationInfo.loadLabel(pm).toString());
-            // A disabled entry is not what the user sees on a normal launcher, so use the real app name
-            // instead of whatever disguise label the alias carries.
             String label = unavailable ? appLabel : FontManager.sanitizeForFont(info.loadLabel(pm).toString());
             AppEntry entry = new AppEntry(packageName, activityName, label, info.activityInfo.applicationInfo);
             entry.appLabel = appLabel;
@@ -154,11 +152,6 @@ public class AppsProvider {
         return apps;
     }
 
-    /**
-     * One package can expose several launcher entries (icon aliases, many of them disabled).
-     * Drop disabled entries when the same app also has an enabled one; if every entry is disabled,
-     * keep just one so the app still shows (dimmed). Multiple enabled entries are left alone.
-     */
     private static List<AppEntry> dedupe(List<AppEntry> apps) {
         Set<String> hasEnabled = new HashSet<>();
         for (int i = 0; i < apps.size(); i++) {
@@ -175,10 +168,6 @@ public class AppsProvider {
         return out;
     }
 
-    /**
-     * Everything the system reports plus every app we have ever seen that is now gone
-     * (uninstalled, or disabled and hidden by the system). Ghosts stay until removed by hand.
-     */
     public List<AppEntry> getTracked() {
         PrefsManager prefs = PrefsManager.getInstance(context);
         List<AppEntry> apps = getAll();
@@ -191,7 +180,6 @@ public class AppsProvider {
         }
         prefs.syncTracked(toSync);
 
-        // Hide private-space ghosts while it is locked, otherwise locking would reveal its apps here.
         boolean hideProfileGhosts = isPrivateSpaceLocked();
         List<String> keys = prefs.getTrackedKeys();
         for (int i = 0; i < keys.size(); i++) {
@@ -211,7 +199,6 @@ public class AppsProvider {
         return apps;
     }
 
-    /** Still known to the system but not launchable (disabled) -> 1, otherwise gone -> 0. */
     private int ghostLevelFor(String packageName) {
         try {
             context.getPackageManager().getApplicationInfo(packageName, 0);
