@@ -2,6 +2,7 @@ package com.rama.mako_zero.helpers;
 
 import java.util.Locale;
 
+public final class FileSizes {
     private static final String[] UNITS = {"KB", "MB", "GB", "TB"};
 
     private FileSizes() {
