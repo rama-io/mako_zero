@@ -31,34 +31,31 @@ public final class ThemeManager {
     private ThemeManager() {
     }
 
-    public static Themes.Palette paletteFor(String themeId) {
-        return Themes.byId(themeId);
-    }
-
     public static Themes.Palette currentPalette(Context context) {
         PrefsManager prefs = PrefsManager.getInstance(context);
-        String id = prefs.getTheme();
-        if (PrefTheme.CATPPUCCIN_MOCHA_RANDOM.equals(id)) {
-            id = prefs.getRolledThemeId();
+        String accent = prefs.getAccent();
+        if (PrefTheme.ACCENT_RANDOM.equals(accent)) {
+            accent = prefs.getRolledAccent();
         }
-        return paletteFor(id);
+        return Themes.palette(prefs.getFlavor(), accent);
     }
 
     public static void rollIfRandom(Context context) {
-        if (PrefTheme.CATPPUCCIN_MOCHA_RANDOM.equals(PrefsManager.getInstance(context).getTheme())) {
+        PrefsManager prefs = PrefsManager.getInstance(context);
+        if (Themes.hasAccents(prefs.getFlavor()) && PrefTheme.ACCENT_RANDOM.equals(prefs.getAccent())) {
             roll(context);
         }
     }
 
     public static void roll(Context context) {
         PrefsManager prefs = PrefsManager.getInstance(context);
-        List<Themes.Palette> pool = Themes.rotationPool();
-        String previous = prefs.getRolledThemeId();
+        List<String> pool = Themes.accentIds();
+        String previous = prefs.getRolledAccent();
         String next;
         do {
-            next = pool.get(RANDOM.nextInt(pool.size())).id;
+            next = pool.get(RANDOM.nextInt(pool.size()));
         } while (next.equals(previous) && pool.size() > 1);
-        prefs.setRolledTheme(next);
+        prefs.setRolledAccent(next);
     }
 
     public static void applyTheme(Context context, View root) {
