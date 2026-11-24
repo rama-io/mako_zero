@@ -3,7 +3,6 @@ package com.rama.mako_zero.widgets;
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.util.AttributeSet;
-import android.view.HapticFeedbackConstants;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -11,6 +10,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import com.rama.mako_zero.R;
+import com.rama.mako_zero.helpers.Haptics;
 import com.rama.mako_zero.managers.PrefsManager;
 
 public class WdCollapsibleSection extends LinearLayout {
@@ -49,20 +49,13 @@ public class WdCollapsibleSection extends LinearLayout {
             ta.recycle();
         }
         applyState(loadState());
-        header.setOnClickListener(v -> {
-            v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-            boolean next = !isExpanded();
-            applyState(next);
-            saveState(next);
-        });
+        header.setOnClickListener(Haptics.onClick(v -> toggle()));
         header.setFocusable(true);
         header.setFocusableInTouchMode(false);
         header.setOnKeyListener((v, keyCode, event) -> {
             if (event.getAction() == KeyEvent.ACTION_DOWN && (keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_DPAD_CENTER)) {
-                v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-                boolean next = !isExpanded();
-                applyState(next);
-                saveState(next);
+                Haptics.tap(v);
+                toggle();
                 return true;
             }
             return false;
@@ -80,6 +73,12 @@ public class WdCollapsibleSection extends LinearLayout {
                 content.addView(child, 0);
             }
         }
+    }
+
+    private void toggle() {
+        boolean next = !isExpanded();
+        applyState(next);
+        saveState(next);
     }
 
     private boolean isExpanded() {

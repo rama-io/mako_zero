@@ -142,11 +142,28 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:defaultExpanded="true"
-                app:header="@string/header_themes"
+                app:header="@string/header_theme"
                 app:key="settings:section:appearance">
 
                 <com.rama.mako_zero.widgets.WdRadioGroup
                     android:id="@+id/theme_group"
+                    style="@style/VerticalList_BG2" />
+            </com.rama.mako_zero.widgets.WdCollapsibleSection>
+
+            <View
+                android:id="@+id/accent_separator"
+                style="@style/SeparatorListVertical" />
+
+            <com.rama.mako_zero.widgets.WdCollapsibleSection
+                android:id="@+id/accent_section"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:defaultExpanded="true"
+                app:header="@string/header_accent"
+                app:key="settings:section:accent">
+
+                <com.rama.mako_zero.widgets.WdRadioGroup
+                    android:id="@+id/accent_group"
                     style="@style/VerticalList_BG2" />
             </com.rama.mako_zero.widgets.WdCollapsibleSection>
 

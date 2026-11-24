@@ -1,5 +1,9 @@
 # Changelog
 
+## 5
+
+- Support for API 4
+
 ## 4
 
 - Fix apps labels when they are disabled

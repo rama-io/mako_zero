@@ -95,7 +95,7 @@ public final class SystemGroups {
             if (level == AppsProvider.AppEntry.LEVEL_NOT_RUNNING) {
                 result.get(NOT_RUNNING).add(app);
             }
-            if (app.isOtherProfile) continue; // permissions of other profiles aren't readable from here
+            if (app.isOtherProfile) continue;
             Set<String> granted = grantedByPackage.get(app.packageName);
             if (granted == null) {
                 granted = grantedPermissions(pm, app.packageName);

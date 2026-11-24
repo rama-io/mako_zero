@@ -3,7 +3,6 @@ package com.rama.mako_zero.adapters;
 import android.content.Context;
 import android.os.Build;
 import android.os.SystemClock;
-import android.text.format.Formatter;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
@@ -14,6 +13,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import com.rama.mako_zero.R;
+import com.rama.mako_zero.helpers.FileSizes;
 import com.rama.mako_zero.managers.AppsProvider;
 import com.rama.mako_zero.managers.FontManager;
 import com.rama.mako_zero.managers.GroupManager;
@@ -246,7 +246,6 @@ public class AppListAdapter extends BaseAdapter {
     }
 
     private void buildSystemItems(List<AppsProvider.AppEntry> allApps) {
-        // The permission scan is the expensive part; reuse it for header taps, redo it on reload().
         if (systemSnapshot == null) {
             systemSnapshot = SystemGroups.compute(context, allApps);
         }
@@ -396,7 +395,7 @@ public class AppListAdapter extends BaseAdapter {
         if (!app.isGhost() && PrefsManager.getInstance(context).hasAppSizeVisible()) {
             long sizeBytes = appsProvider.getAppSizeBytes(app);
             appSize.setVisibility(View.VISIBLE);
-            appSize.setText(Formatter.formatShortFileSize(context, sizeBytes));
+            appSize.setText(FileSizes.format(sizeBytes));
             int sizeColor;
             if (sizeBytes > APP_SIZE_WARNING_BYTES) {
                 sizeColor = ThemeManager.currentPalette(context).error;

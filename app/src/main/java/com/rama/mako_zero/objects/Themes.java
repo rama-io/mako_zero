@@ -1,7 +1,9 @@
 package com.rama.mako_zero.objects;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public final class Themes {
     public static final class Palette {
@@ -37,11 +39,105 @@ public final class Themes {
     private Themes() {
     }
 
-    private static Palette mocha(String id, String label, int accent) {
-        return new Palette(id, label, 0xFFCDD6F4, 0xFF1E1E2E, 0xFF45475A, 0xFF585B71, 0xFF6c7086, 0xFF6c7088, accent, 0xFFA6E3A2, 0xFFF9E2AE, 0xFFF38BA9);
+    /** A base color scheme. Catppuccin flavors carry the 14 accents, the mono ones are a single fixed palette. */
+    public static final class Flavor {
+        public final String id;
+        public final String label;
+        final int text, base, surface0, surface1, disabled, border;
+        final int[] accents;
+        final Palette fixed;
+
+        Flavor(String id, String label, Palette fixed) {
+            this.id = id;
+            this.label = label;
+            this.fixed = fixed;
+            this.text = this.base = this.surface0 = this.surface1 = this.disabled = this.border = 0;
+            this.accents = null;
+        }
+
+        Flavor(String id, String label, int text, int base, int surface0, int surface1, int disabled, int border, int[] accents) {
+            this.fixed = null;
+            this.id = id;
+            this.label = label;
+            this.text = text;
+            this.base = base;
+            this.surface0 = surface0;
+            this.surface1 = surface1;
+            this.disabled = disabled;
+            this.border = border;
+            this.accents = accents;
+        }
     }
 
-    public static int getColor(Themes.Palette palette, String name) {
+    public static final class Accent {
+        public final String id;
+        public final String label;
+
+        Accent(String id, String label) {
+            this.id = id;
+            this.label = label;
+        }
+    }
+
+    public static final String RANDOM = "random";
+    public static final String DEFAULT_FLAVOR = "mocha";
+    public static final String DEFAULT_ACCENT_COLOR = "mauve";
+
+    private static final String[] ACCENT_IDS = {"rosewater", "flamingo", "pink", "mauve", "red", "maroon", "peach", "yellow", "green", "teal", "sky", "sapphire", "blue", "lavender"};
+    private static final String[] ACCENT_LABELS = {"Rosewater", "Flamingo", "Pink", "Mauve", "Red", "Maroon", "Peach", "Yellow", "Green", "Teal", "Sky", "Sapphire", "Blue", "Lavender"};
+    private static final int RED = 4, GREEN = 8, YELLOW = 7;
+
+    private static final Flavor[] FLAVORS = {
+            new Flavor("mocha", "Catppuccin Mocha",
+                    0xFFCDD6F4, 0xFF1E1E2E, 0xFF45475A, 0xFF585B71, 0xFF6C7086, 0xFF6C7088,
+                    new int[]{0xFFF5E0DC, 0xFFF2CDCD, 0xFFF5C2E7, 0xFFCBA6F7, 0xFFF38BA8, 0xFFEBA0AC, 0xFFFAB387, 0xFFF9E2AF, 0xFFA6E3A1, 0xFF94E2D5, 0xFF89DCEB, 0xFF74C7EC, 0xFF89B4FA, 0xFFB4BEFE}),
+            new Flavor("macchiato", "Catppuccin Macchiato",
+                    0xFFCAD3F5, 0xFF24273A, 0xFF494D64, 0xFF5B6079, 0xFF6E738D, 0xFF6E738F,
+                    new int[]{0xFFF4DBD6, 0xFFF0C6C6, 0xFFF5BDE6, 0xFFC6A0F6, 0xFFED8796, 0xFFEE99A0, 0xFFF5A97F, 0xFFEED49F, 0xFFA6DA95, 0xFF8BD5CA, 0xFF91D7E3, 0xFF7DC4E4, 0xFF8AADF4, 0xFFB7BDF8}),
+            new Flavor("frappe", "Catppuccin Frappe",
+                    0xFFC6D0F5, 0xFF303446, 0xFF51576D, 0xFF626881, 0xFF737994, 0xFF737996,
+                    new int[]{0xFFF2D5CF, 0xFFEEBEBE, 0xFFF4B8E4, 0xFFCA9EE6, 0xFFE78284, 0xFFEA999C, 0xFFEF9F76, 0xFFE5C890, 0xFFA6D189, 0xFF81C8BE, 0xFF99D1DB, 0xFF85C1DC, 0xFF8CAAEE, 0xFFBABBF1}),
+            new Flavor("latte", "Catppuccin Latte",
+                    0xFF4C4F69, 0xFFEFF1F5, 0xFFCCD0DA, 0xFFBCC0CC, 0xFF9CA0B1, 0xFF9CA0B2,
+                    new int[]{0xFFDC8A78, 0xFFDD7878, 0xFFEA76CB, 0xFF8839EF, 0xFFD20F39, 0xFFE64553, 0xFFFE640B, 0xFFDF8E1D, 0xFF40A02B, 0xFF179299, 0xFF04A5E5, 0xFF209FB5, 0xFF1E66F5, 0xFF7287FD}),
+            new Flavor("mono_dark", "Mono Dark", new Palette("mono_dark", "Mono Dark",
+                    0xFFFFFFF9, 0xFF040100, 0xFF040101, 0xFF040200, 0xFF555555, 0xFF555556,
+                    0xFFFFF9F9, 0xFFFBFFFF, 0xFFFBFEFF, 0xFFFBFFFB)),
+            new Flavor("mono_light", "Mono Light", new Palette("mono_light", "Mono Light",
+                    0xFF000040, 0xFFFFFFFF, 0xFFFFFEFF, 0xFFFEFFFE, 0xFFAAAAAA, 0xFFAAAAAC,
+                    0xFF020000, 0xFF000001, 0xFF010000, 0xFF020002)),
+    };
+
+    private static final Map<String, Palette> PALETTES = new LinkedHashMap<String, Palette>();
+
+    static {
+        for (Flavor flavor : FLAVORS) {
+            if (flavor.fixed != null) {
+                PALETTES.put(flavor.id, flavor.fixed);
+                continue;
+            }
+            for (int i = 0; i < ACCENT_IDS.length; i++) {
+                // The semantic colors are nudged by one blue step so they never equal an accent,
+                // ThemeManager maps colors by value and two roles sharing a value would clash.
+                Palette p = new Palette(key(flavor.id, ACCENT_IDS[i]), flavor.label + " " + ACCENT_LABELS[i],
+                        flavor.text, flavor.base, flavor.surface0, flavor.surface1, flavor.disabled, flavor.border,
+                        flavor.accents[i],
+                        shiftBlue(flavor.accents[GREEN], 1), shiftBlue(flavor.accents[YELLOW], -1), shiftBlue(flavor.accents[RED], 1));
+                PALETTES.put(p.id, p);
+            }
+        }
+    }
+
+    private static String key(String flavorId, String accentId) {
+        return flavorId + ":" + accentId;
+    }
+
+    private static int shiftBlue(int color, int delta) {
+        int b = Math.max(0, Math.min(255, (color & 0xFF) + delta));
+        return (color & 0xFFFFFF00) | b;
+    }
+
+    public static int getColor(Palette palette, String name) {
         switch (name) {
             case "text":
                 return palette.text;
@@ -68,48 +164,46 @@ public final class Themes {
         }
     }
 
-    public static final Palette CATPPUCCIN_MOCHA_MAUVE = mocha(PrefTheme.CATPPUCCIN_MOCHA_MAUVE, "Catppuccin Mocha Mauve", 0xFFCBA6F7);
-    public static final Palette CATPPUCCIN_MOCHA_BLUE = mocha(PrefTheme.CATPPUCCIN_MOCHA_BLUE, "Catppuccin Mocha Blue", 0xFF89B4FA);
-    public static final Palette CATPPUCCIN_MOCHA_YELLOW = mocha(PrefTheme.CATPPUCCIN_MOCHA_YELLOW, "Catppuccin Mocha Yellow", 0xFFF9E2AF);
-    public static final Palette CATPPUCCIN_MOCHA_PEACH = mocha(PrefTheme.CATPPUCCIN_MOCHA_PEACH, "Catppuccin Mocha Peach", 0xFFFAB387);
-    public static final Palette CATPPUCCIN_MOCHA_GREEN = mocha(PrefTheme.CATPPUCCIN_MOCHA_GREEN, "Catppuccin Mocha Green", 0xFFA6E3A1);
-    public static final Palette CATPPUCCIN_MOCHA_RED = mocha(PrefTheme.CATPPUCCIN_MOCHA_RED, "Catppuccin Mocha Red", 0xFFF38BA8);
-    public static final Palette CATPPUCCIN_LATTE = new Palette(PrefTheme.CATPPUCCIN_LATTE, "Catppuccin Latte", 0xFF4C4F69, 0xFFEFF1F5, 0xFFccd0da, 0xFFBCC0CC, 0xFF9ca0b1, 0xFF9ca0b2, 0xFF1E66F5, 0xFF40A02B, 0xFFFE640B, 0xFFD20F39);
-    public static final Palette MONO_DARK = new Palette(PrefTheme.MONO_DARK, "Mono Dark", 0xFFFFFFF9, 0xFF040100, 0xFF040101, 0xFF040200, 0xFF555555, 0xFF555556, 0xFFFFF9F9, 0xFFFBFFFF, 0xFFFBFEFF, 0xFFFBFFFB);
-    public static final Palette MONO_LIGHT = new Palette(PrefTheme.MONO_LIGHT, "Mono Light", 0xFF000040, 0xFFFFFFFF, 0xFFFFFEFF, 0xFFFEFFFE, 0xFFAAAAAA, 0xFFAAAAAC, 0xFF020000, 0xFF000001, 0xFF010000, 0xFF020002);
+    public static List<Flavor> flavors() {
+        List<Flavor> list = new ArrayList<Flavor>();
+        for (Flavor f : FLAVORS) list.add(f);
+        return list;
+    }
+
+    public static List<Accent> accents() {
+        List<Accent> list = new ArrayList<Accent>();
+        for (int i = 0; i < ACCENT_IDS.length; i++)
+            list.add(new Accent(ACCENT_IDS[i], ACCENT_LABELS[i]));
+        return list;
+    }
+
+    public static boolean isFlavor(String id) {
+        for (Flavor f : FLAVORS) if (f.id.equals(id)) return true;
+        return false;
+    }
+
+    public static boolean isAccent(String id) {
+        for (String a : ACCENT_IDS) if (a.equals(id)) return true;
+        return false;
+    }
+
+    public static List<String> accentIds() {
+        List<String> list = new ArrayList<String>();
+        for (String a : ACCENT_IDS) list.add(a);
+        return list;
+    }
+
+    public static boolean hasAccents(String flavorId) {
+        for (Flavor f : FLAVORS) if (f.id.equals(flavorId)) return f.fixed == null;
+        return true;
+    }
+
+    public static Palette palette(String flavorId, String accentId) {
+        Palette p = hasAccents(flavorId) ? PALETTES.get(key(flavorId, accentId)) : PALETTES.get(flavorId);
+        return p != null ? p : PALETTES.get(key(DEFAULT_FLAVOR, DEFAULT_ACCENT_COLOR));
+    }
 
     public static List<Palette> all() {
-        List<Palette> list = new ArrayList<Palette>();
-        list.add(CATPPUCCIN_MOCHA_MAUVE);
-        list.add(CATPPUCCIN_MOCHA_BLUE);
-        list.add(CATPPUCCIN_MOCHA_YELLOW);
-        list.add(CATPPUCCIN_MOCHA_PEACH);
-        list.add(CATPPUCCIN_MOCHA_GREEN);
-        list.add(CATPPUCCIN_MOCHA_RED);
-        list.add(CATPPUCCIN_LATTE);
-        list.add(MONO_DARK);
-        list.add(MONO_LIGHT);
-        return list;
-    }
-
-    public static List<Palette> rotationPool() {
-        List<Palette> list = new ArrayList<Palette>();
-        list.add(CATPPUCCIN_MOCHA_MAUVE);
-        list.add(CATPPUCCIN_MOCHA_BLUE);
-        list.add(CATPPUCCIN_MOCHA_YELLOW);
-        list.add(CATPPUCCIN_MOCHA_PEACH);
-        list.add(CATPPUCCIN_MOCHA_GREEN);
-        list.add(CATPPUCCIN_MOCHA_RED);
-        return list;
-    }
-
-    public static Palette byId(String id) {
-        List<Palette> list = all();
-        for (int i = 0; i < list.size(); i++) {
-            if (list.get(i).id.equals(id)) {
-                return list.get(i);
-            }
-        }
-        return CATPPUCCIN_MOCHA_MAUVE;
+        return new ArrayList<Palette>(PALETTES.values());
     }
 }

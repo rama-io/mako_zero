@@ -163,35 +163,46 @@ public class Settings extends BaseActivity {
     private void setupAppearanceSection() {
         final PrefsManager prefs = PrefsManager.getInstance(this);
         WdRadioGroup themeGroup = findViewById(R.id.theme_group);
-        boolean randomMode = PrefTheme.CATPPUCCIN_MOCHA_RANDOM.equals(prefs.getTheme());
-        String currentTheme = ThemeManager.currentPalette(this).id;
-        WdRadio randomRadio = new WdRadio(this);
-        randomRadio.setId(999);
-        randomRadio.setText("Catppuccin Mocha (Random)");
-        randomRadio.setTextColor(getResources().getColor(R.color.text));
-        randomRadio.setChecked(randomMode);
-        themeGroup.addView(randomRadio);
-        FontManager.apply(randomRadio, FontManager.getJersey25(this));
-        randomRadio.setOnClickListener(v -> {
-            prefs.setTheme(PrefTheme.CATPPUCCIN_MOCHA_RANDOM);
-            ThemeManager.roll(Settings.this);
-            ThemeManager.applyTheme(Settings.this, findViewById(R.id.root));
-        });
-        List<Themes.Palette> palettes = Themes.all();
-        for (int i = 0; i < palettes.size(); i++) {
-            final Themes.Palette palette = palettes.get(i);
-            WdRadio radio = new WdRadio(this);
-            radio.setId(1000 + i);
-            radio.setText(palette.label);
-            radio.setTextColor(getResources().getColor(R.color.text));
-            radio.setChecked(!randomMode && palette.id.equals(currentTheme));
-            themeGroup.addView(radio);
-            FontManager.apply(radio, FontManager.getJersey25(this));
+        String currentFlavor = prefs.getFlavor();
+        for (final Themes.Flavor flavor : Themes.flavors()) {
+            WdRadio radio = themeGroup.addOption(flavor.label);
+            radio.setChecked(flavor.id.equals(currentFlavor));
             radio.setOnClickListener(v -> {
-                prefs.setTheme(palette.id);
+                prefs.setFlavor(flavor.id);
+                updateAccentVisibility();
                 ThemeManager.applyTheme(Settings.this, findViewById(R.id.root));
             });
         }
+        FontManager.apply(themeGroup, FontManager.getJersey25(this));
+
+        WdRadioGroup accentGroup = findViewById(R.id.accent_group);
+        String currentAccent = prefs.getAccent();
+        boolean random = PrefTheme.ACCENT_RANDOM.equals(currentAccent);
+        WdRadio randomRadio = accentGroup.addOption(getString(R.string.label_accent_random));
+        randomRadio.setChecked(random);
+        randomRadio.setOnClickListener(v -> {
+            prefs.setAccent(PrefTheme.ACCENT_RANDOM);
+            ThemeManager.roll(Settings.this);
+            ThemeManager.applyTheme(Settings.this, findViewById(R.id.root));
+        });
+        for (final Themes.Accent accent : Themes.accents()) {
+            WdRadio radio = accentGroup.addOption(accent.label);
+            radio.setChecked(!random && accent.id.equals(currentAccent));
+            radio.setOnClickListener(v -> {
+                prefs.setAccent(accent.id);
+                ThemeManager.applyTheme(Settings.this, findViewById(R.id.root));
+            });
+        }
+        FontManager.apply(accentGroup, FontManager.getJersey25(this));
+        updateAccentVisibility();
+    }
+
+    /** Fixed palettes (the mono ones) have no accents, so the picker is hidden for them. */
+    private void updateAccentVisibility() {
+        int visibility = Build.VERSION.SDK_INT >= 11 && Themes.hasAccents(PrefsManager.getInstance(this).getFlavor())
+                ? View.VISIBLE : View.GONE;
+        findViewById(R.id.accent_section).setVisibility(visibility);
+        findViewById(R.id.accent_separator).setVisibility(visibility);
     }
 
     private void renderGroups() {

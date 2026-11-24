@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 
 import com.rama.mako_zero.objects.PrefTheme;
+import com.rama.mako_zero.objects.Themes;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -14,8 +15,13 @@ public class PrefsManager {
     private static final String PREFS_NAME = "mako_zero";
     public static final String DEFAULT_GROUP_ID = "ungrouped";
     public static final String DEFAULT_GROUP_LABEL = "Default";
-    private static final String KEY_THEME = "settings:theme";
-    private static final String KEY_THEME_ROLLED_ID = "settings:theme_rolled_id";
+    private static final String KEY_FLAVOR = "settings:flavor";
+    private static final String KEY_ACCENT = "settings:accent";
+    private static final String KEY_ACCENT_ROLLED = "settings:accent_rolled";
+    /** Older builds stored flavor and accent as one id, e.g. "catppuccin_mocha_blue". Only read to migrate. */
+    private static final String KEY_LEGACY_THEME = "settings:theme";
+    private static final String KEY_LEGACY_THEME_ROLLED = "settings:theme_rolled_id";
+    private static final String LEGACY_MOCHA_PREFIX = "catppuccin_mocha_";
     private static final String KEY_COLLAPSE_ON_HOME = "settings:collapse_groups_on_home";
     private static final String KEY_ONLY_ONE_GROUP_OPEN = "settings:only_one_group_open";
     private static final String KEY_SHOW_API_INDICATORS = "apps:show_api_indicators";
@@ -27,6 +33,40 @@ public class PrefsManager {
 
     private PrefsManager(Context context) {
         prefs = context.getApplicationContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        migrateLegacyTheme();
+    }
+
+    /** Splits an old single theme id into {flavor, accent}, or null when it is not one. */
+    private static String[] parseLegacyTheme(String id) {
+        if (id == null) return null;
+        if (id.startsWith(LEGACY_MOCHA_PREFIX)) {
+            String accent = id.substring(LEGACY_MOCHA_PREFIX.length());
+            if (PrefTheme.ACCENT_RANDOM.equals(accent) || Themes.isAccent(accent)) {
+                return new String[]{"mocha", accent};
+            }
+            return null;
+        }
+        // Latte used to be fixed to its blue accent.
+        if ("catppuccin_latte".equals(id)) return new String[]{"latte", "blue"};
+        if (Themes.isFlavor(id) && !Themes.hasAccents(id)) return new String[]{id, PrefTheme.DEFAULT_ACCENT};
+        return null;
+    }
+
+    private void migrateLegacyTheme() {
+        if (!prefs.contains(KEY_LEGACY_THEME) && !prefs.contains(KEY_LEGACY_THEME_ROLLED)) return;
+        SharedPreferences.Editor editor = prefs.edit();
+        if (!prefs.contains(KEY_FLAVOR)) {
+            String[] legacy = parseLegacyTheme(prefs.getString(KEY_LEGACY_THEME, null));
+            if (legacy != null) {
+                editor.putString(KEY_FLAVOR, legacy[0]);
+                editor.putString(KEY_ACCENT, legacy[1]);
+            }
+        }
+        String[] rolled = parseLegacyTheme(prefs.getString(KEY_LEGACY_THEME_ROLLED, null));
+        if (rolled != null && Themes.isAccent(rolled[1]) && !prefs.contains(KEY_ACCENT_ROLLED)) {
+            editor.putString(KEY_ACCENT_ROLLED, rolled[1]);
+        }
+        editor.remove(KEY_LEGACY_THEME).remove(KEY_LEGACY_THEME_ROLLED).commit();
     }
 
     public static synchronized PrefsManager getInstance(Context context) {
@@ -224,20 +264,31 @@ public class PrefsManager {
         prefs.edit().putBoolean(key("sysgroup", id, "expanded"), expanded).commit();
     }
 
-    public String getTheme() {
-        return prefs.getString(KEY_THEME, PrefTheme.DEFAULT);
+    public String getFlavor() {
+        String id = prefs.getString(KEY_FLAVOR, PrefTheme.DEFAULT_FLAVOR);
+        return Themes.isFlavor(id) ? id : PrefTheme.DEFAULT_FLAVOR;
     }
 
-    public void setTheme(String themeId) {
-        prefs.edit().putString(KEY_THEME, themeId).commit();
+    public void setFlavor(String flavorId) {
+        prefs.edit().putString(KEY_FLAVOR, flavorId).commit();
     }
 
-    public String getRolledThemeId() {
-        return prefs.getString(KEY_THEME_ROLLED_ID, PrefTheme.CATPPUCCIN_MOCHA_MAUVE);
+    public String getAccent() {
+        String id = prefs.getString(KEY_ACCENT, PrefTheme.DEFAULT_ACCENT);
+        return Themes.isAccent(id) || PrefTheme.ACCENT_RANDOM.equals(id) ? id : PrefTheme.DEFAULT_ACCENT;
     }
 
-    public void setRolledTheme(String themeId) {
-        prefs.edit().putString(KEY_THEME_ROLLED_ID, themeId).commit();
+    public void setAccent(String accentId) {
+        prefs.edit().putString(KEY_ACCENT, accentId).commit();
+    }
+
+    public String getRolledAccent() {
+        String id = prefs.getString(KEY_ACCENT_ROLLED, Themes.DEFAULT_ACCENT_COLOR);
+        return Themes.isAccent(id) ? id : Themes.DEFAULT_ACCENT_COLOR;
+    }
+
+    public void setRolledAccent(String accentId) {
+        prefs.edit().putString(KEY_ACCENT_ROLLED, accentId).commit();
     }
 
     public boolean shouldCollapseGroupsOnHome() {
