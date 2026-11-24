@@ -9,25 +9,12 @@ android {
 
     defaultConfig {
         applicationId "com.rama.${app_name}_zero"
+        minSdk 21
         targetSdk 37
         versionCode 5
         versionName "${current_year}.${versionCode}"
 
         resConfigs "en"
-    }
-
-    flavorDimensions "androidVersion"
-
-    productFlavors {
-        forever {
-            dimension "androidVersion"
-            minSdk 4
-        }
-
-        zero {
-            dimension "androidVersion"
-            minSdk 21
-        }
     }
 
     buildTypes {
@@ -59,7 +46,6 @@ android {
         resources {
             excludes += 'META-INF/*.version'
             excludes += 'META-INF/com/android/gradle/app-metadata.properties'
-            excludes += 'kotlin/**'
         }
 
         jniLibs {
@@ -71,11 +57,9 @@ android {
 androidComponents {
     onVariants(selector().all()) { variant ->
         variant.outputs.each { output ->
-            def flavor = variant.flavorName
-
             output.outputFileName.set(
                     output.versionName.map { name ->
-                        "${app_name}_${flavor}_${name}.apk"
+                        "${app_name}_zero_${name}.apk"
                     }
             )
         }
